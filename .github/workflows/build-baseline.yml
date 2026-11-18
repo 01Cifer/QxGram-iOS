@@ -2,13 +2,22 @@ name: Baseline upstream IPA
 
 on:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: 'Runner label'
+        required: false
+        default: macos-26
+        type: choice
+        options:
+          - macos-26
+          - macos-26-intel
 
 permissions:
   contents: read
 
 jobs:
   build:
-    runs-on: macos-26
+    runs-on: ${{ inputs.runner }}
     timeout-minutes: 355
 
     steps:
@@ -63,6 +72,18 @@ jobs:
           export USE_BAZEL_VERSION=9.2.0
           "$BAZELISK" --version
           echo "USE_BAZEL_VERSION=9.2.0" >> "$GITHUB_ENV"
+
+      - name: Prepare wasi-sdk for x86_64
+        if: runner.arch == 'X64'
+        working-directory: telegram-ios
+        run: |
+          set -euo pipefail
+          URL='https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-x86_64-macos.tar.gz'
+          curl -fsSL "$URL" -o /tmp/wasi-sdk.tar.gz
+          mkdir -p /tmp/wasi-sdk
+          tar -xzf /tmp/wasi-sdk.tar.gz -C /tmp/wasi-sdk --strip-components=1
+          test -x /tmp/wasi-sdk/bin/clang++
+          echo "build --override_repository=wasi_sdk_macos=/tmp/wasi-sdk" >> .bazelrc
 
       - name: Refresh expired fake provisioning profiles
         working-directory: telegram-ios
