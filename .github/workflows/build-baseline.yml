@@ -78,7 +78,7 @@ jobs:
             build \
             --configurationPath=build-system/appstore-configuration.json \
             --codesigningInformationPath=build-system/fake-codesigning \
-            --disableProvisioningProfiles \
+            --bazelArguments="--//Telegram:disableProvisioningProfiles" \
             --configuration=release_arm64 \
             --buildNumber="${{ github.run_number }}"
 
