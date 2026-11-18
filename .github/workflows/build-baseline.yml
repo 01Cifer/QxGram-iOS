@@ -72,10 +72,10 @@ jobs:
           BAZELISK="$(command -v bazelisk)"
           df -h /
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+          echo 'build --//Telegram:disableProvisioningProfiles' >> .bazelrc
           python3 -u build-system/Make/Make.py \
             --bazel="$BAZELISK" \
             --bazelUserRoot=/Users/runner/bazel-root \
-            --bazelArguments="--//Telegram:disableProvisioningProfiles" \
             build \
             --configurationPath=build-system/appstore-configuration.json \
             --codesigningInformationPath=build-system/fake-codesigning \
