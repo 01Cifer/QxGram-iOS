@@ -70,8 +70,9 @@ jobs:
           set -euo pipefail
           CERTS=build-system/fake-codesigning/certs
           PROFILES=build-system/fake-codesigning/profiles
-          openssl pkcs12 -in "$CERTS/SelfSigned.p12" -passin pass: -clcerts -nokeys -out /tmp/fake-cert.pem
-          openssl pkcs12 -in "$CERTS/SelfSigned.p12" -passin pass: -nocerts -nodes -out /tmp/fake-key.pem
+          openssl version
+          openssl pkcs12 -legacy -in "$CERTS/SelfSigned.p12" -passin pass: -clcerts -nokeys -out /tmp/fake-cert.pem || openssl pkcs12 -in "$CERTS/SelfSigned.p12" -passin pass: -clcerts -nokeys -out /tmp/fake-cert.pem
+          openssl pkcs12 -legacy -in "$CERTS/SelfSigned.p12" -passin pass: -nocerts -nodes -out /tmp/fake-key.pem || openssl pkcs12 -in "$CERTS/SelfSigned.p12" -passin pass: -nocerts -nodes -out /tmp/fake-key.pem
           for f in "$PROFILES"/*.mobileprovision; do
             openssl cms -verify -inform DER -in "$f" -noverify -out /tmp/profile.plist
             python3 -c 'import datetime,plistlib,sys; p=sys.argv[1]; d=plistlib.load(open(p,"rb")); d["ExpirationDate"]=datetime.datetime(2029,6,1); d["TimeToLive"]=900; plistlib.dump(d,open(p,"wb"))' /tmp/profile.plist
