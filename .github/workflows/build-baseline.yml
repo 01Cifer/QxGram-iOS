@@ -83,6 +83,8 @@ jobs:
           mkdir -p /tmp/wasi-sdk
           tar -xzf /tmp/wasi-sdk.tar.gz -C /tmp/wasi-sdk --strip-components=1
           test -x /tmp/wasi-sdk/bin/clang++
+          : > /tmp/wasi-sdk/MODULE.bazel
+          python3 -c 'import base64,sys; open("/tmp/wasi-sdk/BUILD.bazel","wb").write(base64.b64decode(sys.argv[1]))' 'ZXhwb3J0c19maWxlcyhbImJpbi9jbGFuZysrIl0pCmZpbGVncm91cCgKICAgIG5hbWUgPSAiYWxsX2ZpbGVzIiwKICAgIHNyY3MgPSBnbG9iKFsiYmluLyoqIiwgImxpYi8qKiIsICJzaGFyZS8qKiJdKSwKICAgIHZpc2liaWxpdHkgPSBbIi8vdmlzaWJpbGl0eTpwdWJsaWMiXSwKKQo='
           echo "build --override_repository=wasi_sdk_macos=/tmp/wasi-sdk" >> .bazelrc
 
       - name: Refresh expired fake provisioning profiles
