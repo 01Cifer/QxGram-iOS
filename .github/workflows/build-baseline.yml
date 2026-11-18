@@ -63,6 +63,13 @@ jobs:
           xcodebuild -version
           df -h /
 
+      - name: Install Metal toolchain
+        run: |
+          set -x
+          xcrun -sdk iphoneos metal --version || sudo xcodebuild -downloadComponent MetalToolchain
+          xcrun -sdk iphoneos metal --version
+          df -h /
+
       - name: Prepare Bazel 9.2.0
         run: |
           set -x
