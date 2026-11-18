@@ -1,0 +1,101 @@
+name: Baseline upstream IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 355
+
+    steps:
+      - name: Show runner
+        run: |
+          set -x
+          sw_vers
+          uname -m
+          sysctl -n hw.memsize
+          sysctl -n hw.ncpu
+          df -h /
+          du -sh /Applications
+          ls -1 /Applications | grep -i xcode || true
+          /usr/bin/xcodebuild -version || true
+
+      - name: Free disk space
+        run: |
+          set -x
+          for app in /Applications/Xcode_*.app; do
+            case "$app" in
+              /Applications/Xcode_26.6.app) echo "keeping $app" ;;
+              *) sudo rm -rf "$app" ;;
+            esac
+          done
+          sudo rm -rf /Library/Developer/CoreSimulator/Profiles/Runtimes/* || true
+          sudo rm -rf /Library/Developer/CoreSimulator/Volumes/* || true
+          rm -rf "$HOME/Library/Developer/Xcode/DerivedData" || true
+          df -h /
+
+      - name: Checkout upstream release-13.0.0
+        uses: actions/checkout@v4
+        with:
+          repository: TelegramMessenger/Telegram-iOS
+          ref: release-13.0.0
+          submodules: recursive
+          fetch-depth: 0
+          path: telegram-ios
+
+      - name: Select Xcode 26.6
+        run: |
+          set -x
+          sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+          df -h /
+
+      - name: Prepare Bazel 9.2.0
+        run: |
+          set -x
+          BAZELISK="$(command -v bazelisk || true)"
+          echo "bazelisk=$BAZELISK"
+          test -n "$BAZELISK"
+          export USE_BAZEL_VERSION=9.2.0
+          "$BAZELISK" --version
+          echo "USE_BAZEL_VERSION=9.2.0" >> "$GITHUB_ENV"
+
+      - name: Build unsigned IPA
+        working-directory: telegram-ios
+        run: |
+          set -x
+          export USE_BAZEL_VERSION=9.2.0
+          BAZELISK="$(command -v bazelisk)"
+          df -h /
+          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+          python3 -u build-system/Make/Make.py \
+            --bazel="$BAZELISK" \
+            --bazelUserRoot=/Users/runner/bazel-root \
+            build \
+            --configurationPath=build-system/appstore-configuration.json \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --configuration=release_arm64 \
+            --buildNumber="${{ github.run_number }}"
+
+      - name: Collect IPA and report disk
+        working-directory: telegram-ios
+        run: |
+          set -x
+          df -h /
+          du -sh bazel-out 2>/dev/null || true
+          mkdir -p build/artifacts
+          cp bazel-out/applebin_ios-ios_arm*-opt-ST-*/bin/Telegram/Telegram.ipa build/artifacts/ || true
+          ls -la build/artifacts
+          test -f build/artifacts/Telegram.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: qxgram-baseline-ipa
+          path: telegram-ios/build/artifacts/Telegram.ipa
+          if-no-files-found: error
+          retention-days: 7
