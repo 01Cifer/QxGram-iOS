@@ -132,9 +132,9 @@ jobs:
         run: |
           set -x
           df -h /
-          du -sh bazel-out 2>/dev/null || true
+          du -shL bazel-out 2>/dev/null || true
           mkdir -p build/artifacts
-          cp bazel-out/applebin_ios-ios_arm*-opt-ST-*/bin/Telegram/Telegram.ipa build/artifacts/ || true
+          cp bazel-bin/Telegram/Telegram.ipa build/artifacts/Telegram.ipa
           ls -la build/artifacts
           test -f build/artifacts/Telegram.ipa
 
