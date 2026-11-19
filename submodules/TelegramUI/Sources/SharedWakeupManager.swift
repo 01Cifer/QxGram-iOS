@@ -140,7 +140,8 @@ public final class SharedWakeupManager {
             guard let self else {
                 return
             }
-            self.enableBackgroundTasks = isEnabled
+            let isQxGramPersonalBuild = (Bundle.main.object(forInfoDictionaryKey: "QxGramPersonalBuild") as? Bool) == true
+            self.enableBackgroundTasks = isEnabled && !isQxGramPersonalBuild
         })
         
         self.inForegroundDisposable = (inForeground

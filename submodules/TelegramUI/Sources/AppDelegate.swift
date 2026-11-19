@@ -1631,7 +1631,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         }
         #endif
         
-        if #available(iOS 13.0, *) {
+        if #available(iOS 13.0, *), !self.isQxGramPersonalBuild {
             let cleanupTaskId = "\(baseAppBundleId).cleanup"
             
             BGTaskScheduler.shared.register(forTaskWithIdentifier: cleanupTaskId, using: DispatchQueue.main) { task in
