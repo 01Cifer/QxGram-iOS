@@ -1,5 +1,5 @@
 {
-	"bundle_id": "org.{! a random string !}.Telegram",
+	"bundle_id": "org.qxgram.app",
 	"api_id": "{! get one at https://my.telegram.org/apps !}",
 	"api_hash": "{! get one at https://my.telegram.org/apps !}",
 	"team_id": "{! check README.md !}",
@@ -7,7 +7,7 @@
 	"is_internal_build": "true",
 	"is_appstore_build": "false",
 	"appstore_id": "0",
-	"app_specific_url_scheme": "tg",
+	"app_specific_url_scheme": "qxgram",
 	"premium_iap_product_id": "",
 	"enable_siri": false,
 	"enable_icloud": false

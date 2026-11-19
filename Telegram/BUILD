@@ -462,20 +462,7 @@ plist_fragment(
             <string>{telegram_bundle_id}</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>telegram</string>
-            </array>
-        </dict>
-        <dict>
-            <key>CFBundleTypeRole</key>
-            <string>Viewer</string>
-            <key>CFBundleURLName</key>
-            <string>{telegram_bundle_id}.compatibility</string>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>tg</string>
-                <string>tonsite</string>
-                <string>ton</string>
-                <string>tc</string>
+                <string>qxgram</string>
             </array>
         </dict>
     </array>
@@ -558,16 +545,7 @@ icloud_fragment = "" if not telegram_enable_icloud else """
     telegram_icloud_environment="Production" if telegram_aps_environment == "production" else "Development"
 )
 
-associated_domains_fragment = "" if telegram_bundle_id not in official_bundle_ids else """
-<key>com.apple.developer.associated-domains</key>
-<array>
-    <string>applinks:telegram.me</string>
-    <string>applinks:t.me</string>
-    <string>applinks:*.t.me</string>
-    <string>webcredentials:t.me</string>
-    <string>webcredentials:telegram.org</string>
-</array>
-"""
+associated_domains_fragment = ""
 
 siri_fragment = "" if not telegram_enable_siri else """
 <key>com.apple.developer.siri</key>
@@ -1877,7 +1855,7 @@ plist_fragment(
                 <string>BlueIcon@3x.png</string>
             </array>
             <key>UTTypeIdentifier</key>
-            <string>org.telegram.Telegram-iOS.theme</string>
+            <string>org.qxgram.app.theme</string>
             <key>UTTypeTagSpecification</key>
             <dict>
                 <key>public.filename-extension</key>
@@ -2035,7 +2013,7 @@ swift_library(
 
 ios_ui_test_suite(
     name = "iOSAppUITestSuite",
-    bundle_id = "org.telegram.Telegram-iOS-uitests",
+    bundle_id = "{}.uitests".format(telegram_bundle_id),
     minimum_os_version = minimum_os_version,
     runners = [
         ":iPhone-17__26.2",
