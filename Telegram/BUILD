@@ -306,6 +306,28 @@ filegroup(
     ], exclude = ["Telegram-iOS/*.lproj/**/.*"]),
 )
 
+qxgram_info_locales = [
+    "ar", "be", "ca", "de", "en", "es", "fa", "fr", "id", "it",
+    "ko", "ms", "nl", "pl", "pt", "ru", "tr", "uk", "uz",
+]
+
+[
+    genrule(
+        name = "QxGramInfoPlistStrings_{}".format(locale),
+        srcs = [
+            "Telegram-iOS/{}.lproj/InfoPlist.strings".format(locale),
+            "//build-system:rebrand_info_plist.py",
+        ],
+        outs = ["QxGramLocalizedInfo/{}.lproj/InfoPlist.strings".format(locale)],
+        cmd = "python3 $(location //build-system:rebrand_info_plist.py) $(location Telegram-iOS/{}.lproj/InfoPlist.strings) $@".format(locale),
+    ) for locale in qxgram_info_locales
+]
+
+filegroup(
+    name = "QxGramInfoPlistStringResources",
+    srcs = [":QxGramInfoPlistStrings_{}".format(locale) for locale in qxgram_info_locales],
+)
+
 filegroup(
     name = "Icons",
     srcs = glob([
@@ -394,7 +416,6 @@ swift_library(
         ":Icons",
         ":AppResources",
         ":AppIntentVocabularyResources",
-        ":InfoPlistStringResources",
         "//submodules/LegacyComponents:LegacyComponentsResources",
         "//submodules/LegacyComponents:LegacyComponentsAssets",
         "//submodules/OverlayStatusController:OverlayStatusControllerResources",
@@ -406,7 +427,10 @@ swift_library(
         "//submodules/TelegramUI:TelegramUIAssets",
         "//submodules/TelegramUI/Components/Calls/CallScreen:Assets",
         ":GeneratedPresentationStrings/Resources/PresentationStrings.data",
-    ],
+    ] + select({
+        ":personalBuildSetting": [":QxGramInfoPlistStringResources"],
+        "//conditions:default": [":InfoPlistStringResources"],
+    }),
     deps = [
         "//submodules/TelegramUI:TelegramUI",
         "//third-party/boringssl:crypto",

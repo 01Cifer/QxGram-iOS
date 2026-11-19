@@ -25,7 +25,7 @@ def macho(entitlements, platform=2):
     return header + build_version + signature_command + signature
 
 
-def make_ipa(entitlements=None, *, marker=True, background=None, extension=False, platform=2, task_ids=False, framework_entitlements=None, schemes=None, framework_id=None, icon_name="QxGram", alternate_icons=False):
+def make_ipa(entitlements=None, *, marker=True, background=None, extension=False, platform=2, task_ids=False, framework_entitlements=None, schemes=None, framework_id=None, icon_name="QxGram", alternate_icons=False, localized_name="QxGram"):
     data = io.BytesIO()
     info = {
         "CFBundleIdentifier": BUNDLE_ID,
@@ -43,6 +43,9 @@ def make_ipa(entitlements=None, *, marker=True, background=None, extension=False
         info["CFBundleIcons"]["CFBundleAlternateIcons"] = {"OldIcon": {}}
     with zipfile.ZipFile(data, "w") as ipa:
         ipa.writestr(ROOT + "Info.plist", plistlib.dumps(info))
+        ipa.writestr(ROOT + "en.lproj/InfoPlist.strings", plistlib.dumps({
+            "CFBundleDisplayName": localized_name, "CFBundleName": "QxGram",
+        }))
         ipa.writestr(ROOT + "Telegram", macho(entitlements or {}, platform=platform))
         ipa.writestr(ROOT + "Frameworks/Test.framework/Test", macho(framework_entitlements or {}))
         ipa.writestr(ROOT + "Frameworks/Test.framework/Info.plist", plistlib.dumps({
@@ -78,6 +81,10 @@ class VerifyPersonalIpaTests(unittest.TestCase):
             inspect_ipa(make_ipa(icon_name="Telegram"), BUNDLE_ID)
         with self.assertRaisesRegex(VerificationError, "alternate app icons"):
             inspect_ipa(make_ipa(alternate_icons=True), BUNDLE_ID)
+
+    def test_rejects_old_localized_app_name(self):
+        with self.assertRaisesRegex(VerificationError, "localized display name"):
+            inspect_ipa(make_ipa(localized_name="Telegram"), BUNDLE_ID)
 
     def test_rejects_old_framework_identifier(self):
         with self.assertRaisesRegex(VerificationError, "framework bundle identifier"):

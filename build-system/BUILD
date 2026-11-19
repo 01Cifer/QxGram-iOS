@@ -22,4 +22,5 @@ config_setting(
 
 exports_files([
     "GenerateStrings/GenerateStrings.py",
+    "rebrand_info_plist.py",
 ])

@@ -102,6 +102,17 @@ def inspect_ipa(ipa_file, bundle_id):
         require(isinstance(url_types, list) and all(isinstance(item, dict) for item in url_types), "invalid URL types")
         schemes = [scheme for item in url_types for scheme in item.get("CFBundleURLSchemes", [])]
         require(schemes == ["qxgram"], "unexpected registered URL schemes")
+        localized_info = [
+            name for name in names if name.startswith(app_root)
+            and len(name[len(app_root):].split("/")) == 2
+            and name[len(app_root):].split("/")[0].endswith(".lproj")
+            and name.endswith("/InfoPlist.strings")
+        ]
+        require(localized_info, "localized system names are missing")
+        for name in localized_info:
+            localized = plistlib.loads(ipa.read(name))
+            require(localized.get("CFBundleDisplayName") == "QxGram", "unexpected localized display name")
+            require(localized.get("CFBundleName") == "QxGram", "unexpected localized bundle name")
         modes = info.get("UIBackgroundModes", [])
         require(isinstance(modes, list), "invalid background modes")
         require(set(modes) <= {"audio", "fetch", "location"}, "unsupported background modes are present")
