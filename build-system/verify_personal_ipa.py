@@ -92,6 +92,12 @@ def inspect_ipa(ipa_file, bundle_id):
         require(info.get("CFBundleDisplayName") == "QxGram", "unexpected app display name")
         require(info.get("CFBundleName") == "QxGram", "unexpected bundle name")
         require(info.get("QxGramPersonalBuild") is True, "personal build marker is missing")
+        for key in ("CFBundleIcons", "CFBundleIcons~ipad"):
+            icons = info.get(key)
+            if key == "CFBundleIcons" or icons is not None:
+                require(isinstance(icons, dict), "missing app icon metadata")
+                require(icons.get("CFBundlePrimaryIcon", {}).get("CFBundleIconName") == "QxGram", "unexpected primary app icon")
+                require(not icons.get("CFBundleAlternateIcons"), "alternate app icons are present")
         url_types = info.get("CFBundleURLTypes", [])
         require(isinstance(url_types, list) and all(isinstance(item, dict) for item in url_types), "invalid URL types")
         schemes = [scheme for item in url_types for scheme in item.get("CFBundleURLSchemes", [])]

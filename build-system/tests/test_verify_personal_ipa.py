@@ -25,7 +25,7 @@ def macho(entitlements, platform=2):
     return header + build_version + signature_command + signature
 
 
-def make_ipa(entitlements=None, *, marker=True, background=None, extension=False, platform=2, task_ids=False, framework_entitlements=None, schemes=None, framework_id=None):
+def make_ipa(entitlements=None, *, marker=True, background=None, extension=False, platform=2, task_ids=False, framework_entitlements=None, schemes=None, framework_id=None, icon_name="QxGram", alternate_icons=False):
     data = io.BytesIO()
     info = {
         "CFBundleIdentifier": BUNDLE_ID,
@@ -33,11 +33,14 @@ def make_ipa(entitlements=None, *, marker=True, background=None, extension=False
         "CFBundleName": "QxGram",
         "CFBundleExecutable": "Telegram",
         "CFBundleURLTypes": [{"CFBundleURLSchemes": ["qxgram"] if schemes is None else schemes}],
+        "CFBundleIcons": {"CFBundlePrimaryIcon": {"CFBundleIconName": icon_name}},
         "QxGramPersonalBuild": marker,
         "UIBackgroundModes": ["audio"] if background is None else background,
     }
     if task_ids:
         info["BGTaskSchedulerPermittedIdentifiers"] = [BUNDLE_ID + ".cleanup"]
+    if alternate_icons:
+        info["CFBundleIcons"]["CFBundleAlternateIcons"] = {"OldIcon": {}}
     with zipfile.ZipFile(data, "w") as ipa:
         ipa.writestr(ROOT + "Info.plist", plistlib.dumps(info))
         ipa.writestr(ROOT + "Telegram", macho(entitlements or {}, platform=platform))
@@ -69,6 +72,12 @@ class VerifyPersonalIpaTests(unittest.TestCase):
         for scheme in ["tg", "tonsite", "telegram", "ton", "tc"]:
             with self.subTest(scheme=scheme), self.assertRaisesRegex(VerificationError, "URL schemes"):
                 inspect_ipa(make_ipa(schemes=["qxgram", scheme]), BUNDLE_ID)
+
+    def test_rejects_original_or_alternate_app_icons(self):
+        with self.assertRaisesRegex(VerificationError, "primary app icon"):
+            inspect_ipa(make_ipa(icon_name="Telegram"), BUNDLE_ID)
+        with self.assertRaisesRegex(VerificationError, "alternate app icons"):
+            inspect_ipa(make_ipa(alternate_icons=True), BUNDLE_ID)
 
     def test_rejects_old_framework_identifier(self):
         with self.assertRaisesRegex(VerificationError, "framework bundle identifier"):

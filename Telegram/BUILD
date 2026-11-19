@@ -615,6 +615,13 @@ plist_fragment(
     }),
 )
 
+filegroup(
+    name = "QxGramAppIcon",
+    srcs = glob([
+        "Telegram-iOS/QxGramAppIcons.xcassets/QxGram.appiconset/*",
+    ]),
+)
+
 plist_fragment(
     name = "QxGramUrlTypesInfoPlist",
     extension = "plist",
@@ -1915,10 +1922,14 @@ ios_application(
         ":personalBuildSetting": [":QxGramPersonalPlist", ":QxGramUrlTypesInfoPlist"],
         "//conditions:default": [":TelegramBackgroundModesPlist", ":UrlTypesInfoPlist"],
     }),
-    app_icons = [ ":{}_icon".format(name) for name in composer_icon_folders ],
-    alternate_icons = [
-        ":{}".format(name) for name in alternate_icon_folders
-    ],
+    app_icons = select({
+        ":personalBuildSetting": [":QxGramAppIcon"],
+        "//conditions:default": [":{}_icon".format(name) for name in composer_icon_folders],
+    }),
+    alternate_icons = select({
+        ":personalBuildSetting": [],
+        "//conditions:default": [":{}".format(name) for name in alternate_icon_folders],
+    }),
     resources = [
         ":LaunchScreen",
         #":DefaultAppIcon",

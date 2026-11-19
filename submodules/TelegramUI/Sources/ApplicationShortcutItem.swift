@@ -49,11 +49,14 @@ func applicationShortcutItems(strings: PresentationStrings, otherAccountName: St
             ApplicationShortcutItem(type: .account, title: strings.Shortcut_SwitchAccount, subtitle: otherAccountName)
         ]
     } else {
-        return [
+        var items = [
             ApplicationShortcutItem(type: .search, title: strings.Common_Search, subtitle: nil),
             ApplicationShortcutItem(type: .compose, title: strings.Compose_NewMessage, subtitle: nil),
-            ApplicationShortcutItem(type: .savedMessages, title: strings.Conversation_SavedMessages, subtitle: nil),
-            ApplicationShortcutItem(type: .appIcon, title: strings.Shortcut_AppIcon, subtitle: nil)
+            ApplicationShortcutItem(type: .savedMessages, title: strings.Conversation_SavedMessages, subtitle: nil)
         ]
+        if (Bundle.main.object(forInfoDictionaryKey: "QxGramPersonalBuild") as? Bool) != true {
+            items.append(ApplicationShortcutItem(type: .appIcon, title: strings.Shortcut_AppIcon, subtitle: nil))
+        }
+        return items
     }
 }
