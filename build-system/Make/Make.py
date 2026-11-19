@@ -46,6 +46,8 @@ class BazelCommandLine:
         self.show_actions = False
         self.enable_sandbox = False
         self.disable_provisioning_profiles = False
+        self.disable_extensions = False
+        self.personal_build = False
         self.profile_swift = False
         self.embed_watch_app = False
         self.watch_api_id = None
@@ -141,6 +143,12 @@ class BazelCommandLine:
     def set_disable_provisioning_profiles(self):
         self.disable_provisioning_profiles = True
 
+    def set_disable_extensions(self, value):
+        self.disable_extensions = value
+
+    def set_personal_build(self, value):
+        self.personal_build = value
+
     def set_profile_swift(self, value):
         self.profile_swift = value
 
@@ -228,6 +236,10 @@ class BazelCommandLine:
         args = [
             '--define=buildNumber={}'.format(self.build_number),
         ]
+        if self.disable_extensions:
+            args += ['--//Telegram:disableExtensions']
+        if self.personal_build:
+            args += ['--//Telegram:personalBuild']
         if self.embed_watch_app:
             args += ['--//Telegram:embedWatchApp']
             # watch_api_id/hash are guaranteed non-None here: set_watch_app is the only
@@ -645,6 +657,10 @@ def resolve_watch_provisioning_profile(arguments, base_path):
 
 
 def build(bazel, arguments):
+    if arguments.personalBuild and not arguments.disableExtensions:
+        raise ValueError('--personalBuild requires --disableExtensions')
+    if arguments.personalBuild and arguments.embedWatchApp:
+        raise ValueError('--personalBuild cannot be combined with --embedWatchApp')
     bazel_command_line = BazelCommandLine(
         bazel=bazel,
         override_bazel_version=arguments.overrideBazelVersion,
@@ -668,6 +684,8 @@ def build(bazel, arguments):
     )
 
     bazel_command_line.set_configuration(arguments.configuration)
+    bazel_command_line.set_disable_extensions(arguments.disableExtensions)
+    bazel_command_line.set_personal_build(arguments.personalBuild)
     if arguments.embedWatchApp:
         if arguments.configuration in ('debug_arm64', 'release_arm64'):
             if arguments.watchApiId is None or arguments.watchApiHash is None:
@@ -1027,6 +1045,18 @@ if __name__ == '__main__':
         metavar='number'
     )
     add_project_and_build_common_arguments(buildParser)
+    buildParser.add_argument(
+        '--disableExtensions',
+        action='store_true',
+        default=False,
+        help='Build without app extensions.'
+    )
+    buildParser.add_argument(
+        '--personalBuild',
+        action='store_true',
+        default=False,
+        help='Build for personal sideloading without privileged entitlements (requires --disableExtensions).'
+    )
     buildParser.add_argument(
         '--configuration',
         choices=[

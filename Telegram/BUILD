@@ -81,6 +81,12 @@ bool_flag(
 )
 
 bool_flag(
+    name = "personalBuild",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+bool_flag(
     name = "disableProvisioningProfiles",
     build_setting_default = False,
     visibility = ["//visibility:public"],
@@ -96,6 +102,13 @@ config_setting(
     name = "disableExtensionsSetting",
     flag_values = {
         ":disableExtensions": "True",
+    },
+)
+
+config_setting(
+    name = "personalBuildSetting",
+    flag_values = {
+        ":personalBuild": "True",
     },
 )
 
@@ -583,20 +596,55 @@ background_gpu_fragment = official_background_gpu_fragment if telegram_bundle_id
 plist_fragment(
     name = "TelegramEntitlements",
     extension = "entitlements",
-    template = "".join([
-        aps_fragment,
-        app_groups_fragment,
-        siri_fragment,
-        associated_domains_fragment,
-        icloud_fragment,
-        apple_pay_merchants_fragment,
-        unrestricted_voip_fragment,
-        carplay_fragment,
-        communication_notifications_fragment,
-        notification_filtering_fragment,
-        signin_fragment,
-        background_gpu_fragment,
-    ])
+    template = select({
+        ":personalBuildSetting": "",
+        "//conditions:default": "".join([
+            aps_fragment,
+            app_groups_fragment,
+            siri_fragment,
+            associated_domains_fragment,
+            icloud_fragment,
+            apple_pay_merchants_fragment,
+            unrestricted_voip_fragment,
+            carplay_fragment,
+            communication_notifications_fragment,
+            notification_filtering_fragment,
+            signin_fragment,
+            background_gpu_fragment,
+        ]),
+    }),
+)
+
+plist_fragment(
+    name = "TelegramBackgroundModesPlist",
+    extension = "plist",
+    template = """
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>audio</string>
+        <string>fetch</string>
+        <string>location</string>
+        <string>remote-notification</string>
+        <string>voip</string>
+        <string>processing</string>
+    </array>
+    """,
+)
+
+plist_fragment(
+    name = "QxGramPersonalPlist",
+    extension = "plist",
+    template = """
+    <key>QxGramPersonalBuild</key>
+    <true/>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>audio</string>
+        <string>fetch</string>
+        <string>location</string>
+        <string>processing</string>
+    </array>
+    """,
 )
 
 genrule(
@@ -1729,15 +1777,6 @@ plist_fragment(
             </array>
         </dict>
     </dict>
-    <key>UIBackgroundModes</key>
-    <array>
-        <string>audio</string>
-        <string>fetch</string>
-        <string>location</string>
-        <string>remote-notification</string>
-        <string>voip</string>
-        <string>processing</string>
-    </array>
     <key>UIDeviceFamily</key>
     <array>
         <integer>1</integer>
@@ -1846,7 +1885,10 @@ ios_application(
         ":VersionInfoPlist",
         ":RequiredDeviceCapabilitiesPlist",
         ":UrlTypesInfoPlist",
-    ],
+    ] + select({
+        ":personalBuildSetting": [":QxGramPersonalPlist"],
+        "//conditions:default": [":TelegramBackgroundModesPlist"],
+    }),
     app_icons = [ ":{}_icon".format(name) for name in composer_icon_folders ],
     alternate_icons = [
         ":{}".format(name) for name in alternate_icon_folders
@@ -1963,6 +2005,7 @@ ios_application(
         ":VersionInfoPlist",
         ":RequiredDeviceCapabilitiesPlist",
         ":UrlTypesInfoPlist",
+        ":TelegramBackgroundModesPlist",
     ],
     deps = [
         #"//submodules/Display",
@@ -2006,6 +2049,7 @@ ios_application(
         ":VersionInfoPlist",
         ":RequiredDeviceCapabilitiesPlist",
         ":UrlTypesInfoPlist",
+        ":TelegramBackgroundModesPlist",
     ],
     deps = [
         "//third-party/webrtc",
@@ -2031,6 +2075,7 @@ ios_application(
         ":VersionInfoPlist",
         ":RequiredDeviceCapabilitiesPlist",
         ":UrlTypesInfoPlist",
+        ":TelegramBackgroundModesPlist",
     ],
     deps = [
         "//third-party/libvpx:vpx",
