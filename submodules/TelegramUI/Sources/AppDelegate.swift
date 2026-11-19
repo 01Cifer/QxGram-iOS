@@ -1105,6 +1105,18 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         let _ = (accountManager.accountRecords()
         |> deliverOnMainQueue).start(next: { view in
             self.accountManagerState = extractAccountManagerState(records: view)
+            let activeAccountIds = Set(view.records.compactMap { record -> AccountRecordId? in
+                if record.attributes.contains(where: { attribute in
+                    if case .loggedOut = attribute {
+                        return true
+                    }
+                    return false
+                }) {
+                    return nil
+                }
+                return record.id
+            })
+            QxGramSettings.removeSettingsForMissingAccounts(activeAccountIds)
         })
 
         var systemUserInterfaceStyle: WindowUserInterfaceStyle = .light
