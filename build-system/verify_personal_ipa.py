@@ -4,6 +4,7 @@
 import argparse
 import plistlib
 import struct
+import subprocess
 import zipfile
 
 
@@ -14,6 +15,31 @@ class VerificationError(Exception):
 def require(condition, message):
     if not condition:
         raise VerificationError(message)
+
+
+def decode_profile(profile_data):
+    result = subprocess.run(
+        ["openssl", "cms", "-verify", "-inform", "DER", "-noverify"],
+        input=profile_data, capture_output=True, check=True,
+    )
+    return plistlib.loads(result.stdout)
+
+
+def inspect_profile(profile, bundle_id):
+    teams = profile.get("TeamIdentifier")
+    require(isinstance(teams, list) and len(teams) == 1 and isinstance(teams[0], str), "invalid profile team")
+    team = teams[0]
+    entitlements = profile.get("Entitlements")
+    require(isinstance(entitlements, dict), "invalid profile entitlements")
+    require(set(entitlements) == {
+        "application-identifier", "com.apple.developer.team-identifier",
+        "get-task-allow", "keychain-access-groups",
+    }, "unexpected profile entitlements")
+    require(entitlements["application-identifier"] == team + "." + bundle_id, "unexpected profile bundle identifier")
+    require(entitlements["com.apple.developer.team-identifier"] == team, "unexpected profile team identifier")
+    require(entitlements["get-task-allow"] is False, "unexpected profile debug entitlement")
+    require(entitlements["keychain-access-groups"] == [team + ".*"], "unexpected profile keychain groups")
+    require(profile.get("Name") == "QxGram fake Telegram", "unexpected fake profile name")
 
 
 def inspect_macho(ipa, path, inspect_entitlements=False):
@@ -92,6 +118,7 @@ def inspect_ipa(ipa_file, bundle_id):
         require(info.get("CFBundleDisplayName") == "QxGram", "unexpected app display name")
         require(info.get("CFBundleName") == "QxGram", "unexpected bundle name")
         require(info.get("QxGramPersonalBuild") is True, "personal build marker is missing")
+        inspect_profile(decode_profile(ipa.read(app_root + "embedded.mobileprovision")), bundle_id)
         for key in ("CFBundleIcons", "CFBundleIcons~ipad"):
             icons = info.get(key)
             if key == "CFBundleIcons" or icons is not None:

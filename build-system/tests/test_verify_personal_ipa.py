@@ -5,6 +5,7 @@ import struct
 import sys
 import unittest
 import zipfile
+from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from verify_personal_ipa import VerificationError, inspect_ipa
@@ -43,6 +44,7 @@ def make_ipa(entitlements=None, *, marker=True, background=None, extension=False
         info["CFBundleIcons"]["CFBundleAlternateIcons"] = {"OldIcon": {}}
     with zipfile.ZipFile(data, "w") as ipa:
         ipa.writestr(ROOT + "Info.plist", plistlib.dumps(info))
+        ipa.writestr(ROOT + "embedded.mobileprovision", b"test profile")
         ipa.writestr(ROOT + "en.lproj/InfoPlist.strings", plistlib.dumps({
             "CFBundleDisplayName": localized_name, "CFBundleName": "QxGram",
         }))
@@ -58,6 +60,21 @@ def make_ipa(entitlements=None, *, marker=True, background=None, extension=False
 
 
 class VerifyPersonalIpaTests(unittest.TestCase):
+    def setUp(self):
+        profile = {
+            "TeamIdentifier": ["TEAM"],
+            "Name": "QxGram fake Telegram",
+            "Entitlements": {
+                "application-identifier": "TEAM." + BUNDLE_ID,
+                "com.apple.developer.team-identifier": "TEAM",
+                "get-task-allow": False,
+                "keychain-access-groups": ["TEAM.*"],
+            },
+        }
+        decoder = patch("verify_personal_ipa.decode_profile", return_value=profile)
+        decoder.start()
+        self.addCleanup(decoder.stop)
+
     def test_accepts_minimal_personal_ipa(self):
         result = inspect_ipa(make_ipa(), BUNDLE_ID)
         self.assertEqual(result["entitlement_keys"], [])
@@ -101,6 +118,16 @@ class VerifyPersonalIpaTests(unittest.TestCase):
     def test_rejects_privileged_entitlement(self):
         with self.assertRaisesRegex(VerificationError, "unsupported entitlements"):
             inspect_ipa(make_ipa({"aps-environment": "production"}), BUNDLE_ID)
+
+    def test_rejects_profile_with_push_entitlement(self):
+        profile = {
+            "TeamIdentifier": ["TEAM"],
+            "Name": "QxGram fake Telegram",
+            "Entitlements": {"application-identifier": "TEAM." + BUNDLE_ID, "aps-environment": "production"},
+        }
+        with patch("verify_personal_ipa.decode_profile", return_value=profile):
+            with self.assertRaisesRegex(VerificationError, "profile entitlements"):
+                inspect_ipa(make_ipa(), BUNDLE_ID)
 
     def test_rejects_framework_entitlements(self):
         with self.assertRaisesRegex(VerificationError, "framework entitlements"):

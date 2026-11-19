@@ -31,6 +31,7 @@ def prepare_profile(profile, profile_name, bundle_id):
         raise ValueError("Unexpected fake profile identifier")
     profile["Name"] = "QxGram fake " + profile_name
     profile["AppIDName"] = "QxGram fake " + profile_name
+    profile["TeamName"] = "QxGram Fake"
     profile["Entitlements"] = {
         "application-identifier": team_id + "." + bundle_id + suffix,
         "com.apple.developer.team-identifier": team_id,
