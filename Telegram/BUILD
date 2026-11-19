@@ -619,6 +619,14 @@ plist_fragment(
     name = "TelegramBackgroundModesPlist",
     extension = "plist",
     template = """
+    <key>CFBundleDisplayName</key>
+    <string>Telegram</string>
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>{telegram_bundle_id}.refresh</string>
+        <string>{telegram_bundle_id}.cleanup</string>
+        <string>{telegram_bundle_id}.upload.*</string>
+    </array>
     <key>UIBackgroundModes</key>
     <array>
         <string>audio</string>
@@ -628,7 +636,7 @@ plist_fragment(
         <string>voip</string>
         <string>processing</string>
     </array>
-    """,
+    """.format(telegram_bundle_id = telegram_bundle_id),
 )
 
 plist_fragment(
@@ -637,12 +645,13 @@ plist_fragment(
     template = """
     <key>QxGramPersonalBuild</key>
     <true/>
+    <key>CFBundleDisplayName</key>
+    <string>QxGram</string>
     <key>UIBackgroundModes</key>
     <array>
         <string>audio</string>
         <string>fetch</string>
         <string>location</string>
-        <string>processing</string>
     </array>
     """,
 )
@@ -1658,18 +1667,10 @@ plist_fragment(
     extension = "plist",
     template = 
     """
-    <key>BGTaskSchedulerPermittedIdentifiers</key>
-    <array>
-        <string>{telegram_bundle_id}.refresh</string>
-        <string>{telegram_bundle_id}.cleanup</string>
-        <string>{telegram_bundle_id}.upload.*</string>
-    </array>
     <key>CFBundleAllowMixedLocalizations</key>
     <true/>
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
-    <key>CFBundleDisplayName</key>
-    <string>Telegram</string>
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}</string>
     <key>CFBundleName</key>

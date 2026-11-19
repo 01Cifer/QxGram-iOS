@@ -1,4 +1,4 @@
-name: QxGram iOS encrypted IPA
+name: QxGram iOS personal encrypted IPA
 
 on:
   workflow_dispatch:
@@ -14,6 +14,9 @@ on:
 
 permissions:
   contents: read
+
+env:
+  QXGRAM_BUNDLE_ID: org.qxgram.ios
 
 jobs:
   build:
@@ -83,6 +86,10 @@ jobs:
           git submodule sync --recursive
           git submodule update --init --recursive --jobs 4
 
+      - name: Test personal IPA verifier
+        working-directory: telegram-ios
+        run: python3 -B -m unittest discover -s build-system/tests -p 'test_verify_personal_ipa.py' -v
+
       - name: Select Xcode 26.6
         run: |
           set -euo pipefail
@@ -139,7 +146,7 @@ jobs:
           openssl pkcs12 -legacy -in "$CERTS/SelfSigned.p12" -passin pass: -nocerts -nodes -out /tmp/fake-key.pem || openssl pkcs12 -in "$CERTS/SelfSigned.p12" -passin pass: -nocerts -nodes -out /tmp/fake-key.pem
           for f in "$PROFILES"/*.mobileprovision; do
             openssl cms -verify -inform DER -in "$f" -noverify -out /tmp/profile.plist
-            python3 -c 'import datetime,plistlib,sys; p=sys.argv[1]; d=plistlib.load(open(p,"rb")); d["ExpirationDate"]=datetime.datetime(2029,6,1); d["TimeToLive"]=900; plistlib.dump(d,open(p,"wb"))' /tmp/profile.plist
+            python3 -c 'import datetime,os,plistlib,sys; p=sys.argv[1]; d=plistlib.load(open(p,"rb")); e=d["Entitlements"]; old=d["TeamIdentifier"][0]+".ph.telegra.Telegraph"; current=e["application-identifier"]; assert current == old or current.startswith(old+"."); e["application-identifier"]=d["TeamIdentifier"][0]+"."+os.environ["QXGRAM_BUNDLE_ID"]+current[len(old):]; d["ExpirationDate"]=datetime.datetime(2029,6,1); d["TimeToLive"]=900; plistlib.dump(d,open(p,"wb"))' /tmp/profile.plist
             openssl cms -sign -binary -in /tmp/profile.plist -signer /tmp/fake-cert.pem -inkey /tmp/fake-key.pem -outform DER -nodetach -out "$f"
           done
 
@@ -158,6 +165,15 @@ jobs:
               config = json.load(source)
           config["api_id"] = os.environ["QXGRAM_API_ID"]
           config["api_hash"] = os.environ["QXGRAM_API_HASH"]
+          config["bundle_id"] = os.environ["QXGRAM_BUNDLE_ID"]
+          config["app_center_id"] = ""
+          config["is_internal_build"] = "false"
+          config["is_appstore_build"] = "false"
+          config["appstore_id"] = "0"
+          config["app_specific_url_scheme"] = "qxgram"
+          config["premium_iap_product_id"] = ""
+          config["enable_siri"] = False
+          config["enable_icloud"] = False
           with open(os.path.join(os.environ["RUNNER_TEMP"], "qxgram-config.json"), "w", encoding="utf-8") as target:
               json.dump(config, target)
           PY
@@ -175,9 +191,17 @@ jobs:
             --configurationPath="$RUNNER_TEMP/qxgram-config.json" \
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \
+            --disableExtensions \
+            --personalBuild \
             --buildNumber="${{ github.run_number }}"
           df -h /
           du -shL bazel-out 2>/dev/null || true
+
+      - name: Verify personal IPA before encryption
+        working-directory: telegram-ios
+        run: |
+          set -euo pipefail
+          python3 -B build-system/verify_personal_ipa.py bazel-bin/Telegram/Telegram.ipa --bundle-id "$QXGRAM_BUNDLE_ID"
 
       - name: Encrypt and verify IPA
         working-directory: telegram-ios
@@ -203,7 +227,7 @@ jobs:
       - name: Upload encrypted IPA only
         uses: actions/upload-artifact@v4
         with:
-          name: qxgram-ios-encrypted
+          name: qxgram-personal-ios-encrypted
           path: ${{ runner.temp }}/qxgram-artifacts/QxGram.ipa.7z
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 90
