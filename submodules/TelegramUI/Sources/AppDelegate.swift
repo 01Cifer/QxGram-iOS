@@ -247,6 +247,9 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
     private var memoryUsageOverlayView: UILabel?
     
     private var buildConfig: BuildConfig?
+    private var isQxGramPersonalBuild: Bool {
+        return (Bundle.main.object(forInfoDictionaryKey: "QxGramPersonalBuild") as? Bool) == true
+    }
     let episodeId = arc4random()
     
     private let isInForegroundPromise = ValuePromise<Bool>(false, ignoreRepeated: true)
@@ -311,11 +314,11 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             return existingSession
         }
         
-        let baseAppBundleId = Bundle.main.bundleIdentifier!
-        let appGroupName = "group.\(baseAppBundleId)"
-
         let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
-        configuration.sharedContainerIdentifier = appGroupName
+        if !self.isQxGramPersonalBuild {
+            let baseAppBundleId = Bundle.main.bundleIdentifier!
+            configuration.sharedContainerIdentifier = "group.\(baseAppBundleId)"
+        }
         configuration.isDiscretionary = false
         let session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
         self.urlSessions.append(session)
@@ -559,10 +562,15 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         
         let baseAppBundleId = Bundle.main.bundleIdentifier!
         let appGroupName = "group.\(baseAppBundleId)"
-        try! PasscodeEnvironment.shared.configure(PasscodeConfiguration(appGroupIdentifier: appGroupName, processRole: .mainApp, biometricKeychainService: walletBiometricKeychainService), privateAccessGroup: {
+        try! PasscodeEnvironment.shared.configure(PasscodeConfiguration(appGroupIdentifier: appGroupName, processRole: .mainApp, biometricKeychainService: walletBiometricKeychainService, usePrivateKeychainForSharedItems: self.isQxGramPersonalBuild), privateAccessGroup: {
             BuildConfig.keychainAccessGroup(baseAppBundleId: baseAppBundleId)
         })
-        let maybeAppGroupUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)
+        let maybeAppGroupUrl: URL?
+        if self.isQxGramPersonalBuild {
+            maybeAppGroupUrl = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?.appendingPathComponent("QxGramPersonal", isDirectory: true)
+        } else {
+            maybeAppGroupUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)
+        }
         
         let buildConfig = BuildConfig(baseAppBundleId: baseAppBundleId)
         self.buildConfig = buildConfig
@@ -715,7 +723,14 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         } else {
             rootPath = rootPathForBasePath(appGroupUrl.path)
         }
-        if !isUITest {
+        if self.isQxGramPersonalBuild {
+            do {
+                try FileManager.default.createDirectory(atPath: rootPath, withIntermediateDirectories: true, attributes: nil)
+            } catch {
+                self.mainWindow?.presentNative(UIAlertController(title: nil, message: "Не удалось открыть хранилище QxGram.", preferredStyle: .alert))
+                return true
+            }
+        } else if !isUITest {
             performAppGroupUpgrades(appGroupPath: appGroupUrl.path, rootPath: rootPath)
         }
         
@@ -1094,12 +1109,14 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             return true
         }
 
-        let pushRegistry = PKPushRegistry(queue: .main)
-        if #available(iOS 9.0, *) {
-            pushRegistry.desiredPushTypes = Set([.voIP])
+        if !self.isQxGramPersonalBuild {
+            let pushRegistry = PKPushRegistry(queue: .main)
+            if #available(iOS 9.0, *) {
+                pushRegistry.desiredPushTypes = Set([.voIP])
+            }
+            self.pushRegistry = pushRegistry
+            pushRegistry.delegate = self
         }
-        self.pushRegistry = pushRegistry
-        pushRegistry.delegate = self
 
         self.accountManagerState = extractAccountManagerState(records: accountManager._internalAccountRecordsSync())
         let _ = (accountManager.accountRecords()
@@ -1661,7 +1678,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             })
         }
         
-        if #available(iOS 12.0, *) {
+        if #available(iOS 12.0, *), !self.isQxGramPersonalBuild {
             UIApplication.shared.registerForRemoteNotifications()
         }
         
@@ -3112,6 +3129,9 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
     }
     
     func requestNotificationTokenInvalidation() {
+        guard !self.isQxGramPersonalBuild else {
+            return
+        }
         UIApplication.shared.unregisterForRemoteNotifications()
         DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 1.0, execute: {
             UIApplication.shared.registerForRemoteNotifications()
@@ -3189,8 +3209,10 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
                                     storyReactionCategory
                                 ])
                                 
-                                Logger.shared.log("App \(self.episodeId)", "register for notifications: invoke registerForRemoteNotifications")
-                                UIApplication.shared.registerForRemoteNotifications()
+                                if !self.isQxGramPersonalBuild {
+                                    Logger.shared.log("App \(self.episodeId)", "register for notifications: invoke registerForRemoteNotifications")
+                                    UIApplication.shared.registerForRemoteNotifications()
+                                }
                             }
                         }
                     })
