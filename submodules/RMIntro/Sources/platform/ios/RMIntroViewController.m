@@ -158,6 +158,9 @@ typedef enum {
                 englishStrings[key] = key;
             }
         }
+        if ([[[NSBundle mainBundle] objectForInfoDictionaryKey:@"QxGramPersonalBuild"] boolValue]) {
+            englishStrings[@"Tour.Title1"] = @"QxGram";
+        }
         _englishStrings = englishStrings;
         
         _headlines = @[ _englishStrings[@"Tour.Title1"], _englishStrings[@"Tour.Title2"],  _englishStrings[@"Tour.Title6"], _englishStrings[@"Tour.Title3"], _englishStrings[@"Tour.Title4"], _englishStrings[@"Tour.Title5"]];

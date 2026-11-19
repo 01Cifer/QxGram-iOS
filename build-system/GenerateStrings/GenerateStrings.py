@@ -445,6 +445,40 @@ static NSString * _Nonnull getPluralizationSuffix(uint32_t lc, int32_t value) {
     }
 }
 
+static NSString * _Nonnull qxgramAppText(NSString * _Nonnull key, NSString * _Nonnull value) {
+    if (![[[NSBundle mainBundle] objectForInfoDictionaryKey:@"QxGramPersonalBuild"] boolValue]) {
+        return value;
+    }
+    if ([key isEqualToString:@"Application.Name"] || [key isEqualToString:@"Tour.Title1"]) {
+        return @"QxGram";
+    }
+    static NSSet<NSString *> *appTextKeys = nil;
+    static dispatch_once_t appTextKeysOnce;
+    dispatch_once(&appTextKeysOnce, ^{
+        appTextKeys = [NSSet setWithArray:@[
+            @"Contacts.AccessDeniedError", @"Contacts.AccessDeniedHelpLandscape",
+            @"Contacts.AccessDeniedHelpPortrait", @"Contacts.PermissionsText",
+            @"PasscodeSettings.EncryptDataHelp", @"PasscodeSettings.LockTelegram",
+            @"EnterPasscode.EnterTitle", @"EnterPasscode.EnterPasscode", @"EnterPasscode.TouchId",
+            @"DialogList.PasscodeLockHelp", @"Passcode.AppLockedAlert", @"Cache.Indexing",
+            @"ClearCache.StorageCache", @"ClearCache.StorageServiceFiles", @"ClearCache.ClearCache",
+            @"StorageManagement.DescriptionChatUsage", @"Media.LimitedAccessText",
+            @"Attachment.CameraAccessText", @"Story.Camera.AccessPlaceholderTitle",
+            @"Map.HomeAndWorkInfo", @"ChatImportActivity.OpenApp",
+            @"Premium.AppIcon", @"Premium.AppIconInfo"
+        ]];
+    });
+    if (![key hasPrefix:@"AccessDenied."] && ![appTextKeys containsObject:key]) {
+        return value;
+    }
+    NSString *result = value;
+    for (NSString *name in @[@"Telegram", @"تيليجرام", @"تلگرام", @"텔레그램"]) {
+        result = [result stringByReplacingOccurrencesOfString:name withString:@"QxGram"];
+    }
+    return [result stringByReplacingOccurrencesOfString:@"[Тт]елеграм[а-яА-Я]*"
+        withString:@"QxGram" options:NSRegularExpressionSearch range:NSMakeRange(0, result.length)];
+}
+
 static NSString * _Nonnull getSingle(_PresentationStrings * _Nullable strings, NSString * _Nonnull key,
     bool * _Nullable isFound) {
     NSString *result = nil;
@@ -484,7 +518,7 @@ static NSString * _Nonnull getSingle(_PresentationStrings * _Nullable strings, N
             *isFound = true;
         }
     }
-    return result;
+    return qxgramAppText(key, result);
 }
 
 static NSString * _Nonnull getSingleIndirect(_PresentationStrings * _Nonnull strings, uint32_t keyId) {
