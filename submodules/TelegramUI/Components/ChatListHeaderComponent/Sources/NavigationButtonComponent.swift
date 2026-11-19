@@ -26,6 +26,7 @@ public final class NavigationButtonComponent: Component {
     
     public enum Content: Equatable {
         case text(title: String, isBold: Bool)
+        case emoji(title: String, isActive: Bool)
         case more
         case icon(imageName: String)
         case proxy(status: ChatTitleProxyStatus)
@@ -121,6 +122,13 @@ public final class NavigationButtonComponent: Component {
                 } else {
                     textString = NSAttributedString(string: title, font: isBold ? Font.bold(17.0) : Font.medium(17.0), textColor: theme.chat.inputPanel.panelControlColor)
                 }
+            case let .emoji(title, isActive):
+                let text = NSMutableAttributedString(attributedString: NSAttributedString(string: title, font: Font.regular(20.0), textColor: theme.chat.inputPanel.panelControlColor))
+                text.append(NSAttributedString(string: isActive ? "●" : "○", font: Font.medium(11.0), textColor: isActive ? theme.list.itemAccentColor : theme.list.itemSecondaryTextColor))
+                textString = text
+                self.accessibilityLabel = "Ghost"
+                self.accessibilityValue = isActive ? "Включён, пока не скрывает активность" : "Выключен"
+                self.accessibilityTraits = [.button]
             case .more:
                 isMore = true
             case let .icon(imageNameValue):

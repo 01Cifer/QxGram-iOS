@@ -129,6 +129,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
     
     private var badgeDisposable: Disposable?
     private var badgeIconDisposable: Disposable?
+    private var qxGramSettingsObserver: NSObjectProtocol?
     
     private var didAppear = false
     private var dismissSearchOnDisappear = false
@@ -740,6 +741,12 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
         }
         
         if case .chatList(.root) = self.location {
+            self.qxGramSettingsObserver = NotificationCenter.default.addObserver(forName: .qxGramSettingsDidChange, object: nil, queue: .main, using: { [weak self] notification in
+                guard let self, let accountId = notification.userInfo?["accountId"] as? Int64, accountId == self.context.account.id.int64 else {
+                    return
+                }
+                self.requestLayout(transition: .immediate)
+            })
             self.chatListDisplayNode.mainContainerNode.currentItemFilterUpdated = { [weak self] filter, fraction, transition, force in
                 guard let strongSelf = self else {
                     return
@@ -787,6 +794,9 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
     }
     
     deinit {
+        if let qxGramSettingsObserver = self.qxGramSettingsObserver {
+            NotificationCenter.default.removeObserver(qxGramSettingsObserver)
+        }
         self.openMessageFromSearchDisposable.dispose()
         self.badgeDisposable?.dispose()
         self.badgeIconDisposable?.dispose()
@@ -2374,6 +2384,11 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
     
     public static var sharedPreviousPowerSavingEnabled: Bool?
     
+    override public func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        self.requestLayout(transition: .immediate)
+    }
+
     override public func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
                 
@@ -2886,6 +2901,16 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
     func updateHeaderContent() -> (primaryContent: ChatListHeaderComponent.Content?, secondaryContent: ChatListHeaderComponent.Content?) {
         var primaryContent: ChatListHeaderComponent.Content?
         if let primaryContext = self.primaryContext {
+            var additionalLeftButtons: [AnyComponentWithIdentity<NavigationButtonComponentEnvironment>] = []
+            if !self.previewing, case .chatList(.root) = self.location {
+                let settings = QxGramSettings(accountId: self.context.account.id)
+                additionalLeftButtons.append(AnyComponentWithIdentity(id: "qxgram-ghost", component: AnyComponent(NavigationButtonComponent(
+                    content: .emoji(title: "👻", isActive: settings.value(.ghost)),
+                    pressed: { _ in
+                        settings.set(.ghost, value: !settings.value(.ghost))
+                    }
+                ))))
+            }
             var displayBackButton: Bool = false
             if self.previousItem != nil {
                 displayBackButton = true
@@ -2900,6 +2925,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                 titleComponent: primaryContext.chatTitleComponent.flatMap { AnyComponent<Empty>($0) },
                 chatListTitle: primaryContext.chatListTitle,
                 leftButton: primaryContext.leftButton,
+                additionalLeftButtons: additionalLeftButtons,
                 rightButtons: primaryContext.rightButtons,
                 backPressed: displayBackButton ? { [weak self] in
                     guard let self else {

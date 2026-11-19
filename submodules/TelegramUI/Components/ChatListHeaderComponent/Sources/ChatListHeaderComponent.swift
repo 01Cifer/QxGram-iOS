@@ -79,6 +79,7 @@ public final class ChatListHeaderComponent: Component {
         public let titleComponent: AnyComponent<Empty>?
         public let chatListTitle: NetworkStatusTitle?
         public let leftButton: AnyComponentWithIdentity<NavigationButtonComponentEnvironment>?
+        public let additionalLeftButtons: [AnyComponentWithIdentity<NavigationButtonComponentEnvironment>]
         public let rightButtons: [AnyComponentWithIdentity<NavigationButtonComponentEnvironment>]
         public let backPressed: (() -> Void)?
         
@@ -88,6 +89,7 @@ public final class ChatListHeaderComponent: Component {
             titleComponent: AnyComponent<Empty>?,
             chatListTitle: NetworkStatusTitle?,
             leftButton: AnyComponentWithIdentity<NavigationButtonComponentEnvironment>?,
+            additionalLeftButtons: [AnyComponentWithIdentity<NavigationButtonComponentEnvironment>] = [],
             rightButtons: [AnyComponentWithIdentity<NavigationButtonComponentEnvironment>],
             backPressed: (() -> Void)?
         ) {
@@ -96,6 +98,7 @@ public final class ChatListHeaderComponent: Component {
             self.titleComponent = titleComponent
             self.chatListTitle = chatListTitle
             self.leftButton = leftButton
+            self.additionalLeftButtons = additionalLeftButtons
             self.rightButtons = rightButtons
             self.backPressed = backPressed
         }
@@ -114,6 +117,9 @@ public final class ChatListHeaderComponent: Component {
                 return false
             }
             if lhs.leftButton != rhs.leftButton {
+                return false
+            }
+            if lhs.additionalLeftButtons != rhs.additionalLeftButtons {
                 return false
             }
             if lhs.rightButtons != rhs.rightButtons {
@@ -504,7 +510,8 @@ public final class ChatListHeaderComponent: Component {
             }
             
             var validLeftButtons = Set<AnyHashable>()
-            if let leftButton = content.leftButton {
+            let leftButtons = [content.leftButton].compactMap { $0 } + content.additionalLeftButtons
+            for leftButton in leftButtons {
                 validLeftButtons.insert(leftButton.id)
 
                 if nextLeftButtonX != 0.0 {
