@@ -14,12 +14,14 @@ public struct PasscodeConfiguration: Equatable, Sendable {
     public let processRole: ProcessRole
     public let biometricKeychainService: String?
     public let keychainScope: String?
+    public let usePrivateKeychainForSharedItems: Bool
 
-    public init(appGroupIdentifier: String, processRole: ProcessRole, biometricKeychainService: String? = nil, keychainScope: String? = nil) {
+    public init(appGroupIdentifier: String, processRole: ProcessRole, biometricKeychainService: String? = nil, keychainScope: String? = nil, usePrivateKeychainForSharedItems: Bool = false) {
         self.appGroupIdentifier = appGroupIdentifier
         self.processRole = processRole
         self.biometricKeychainService = biometricKeychainService
         self.keychainScope = keychainScope
+        self.usePrivateKeychainForSharedItems = usePrivateKeychainForSharedItems
     }
 }
 
@@ -51,6 +53,7 @@ public final class PasscodeEnvironment: @unchecked Sendable {
             guard current == configuration else { throw PasscodeError.unavailable }
             return
         }
+        guard !configuration.usePrivateKeychainForSharedItems || configuration.processRole == .mainApp else { throw PasscodeError.unavailable }
         guard configuration.processRole != .mainApp || privateAccessGroup != nil else { throw PasscodeError.unavailable }
         self.configuration = configuration
         self.resolvePrivateAccessGroup = privateAccessGroup
@@ -71,9 +74,16 @@ public final class PasscodeEnvironment: @unchecked Sendable {
 
     public func sharedAccessGroup() throws -> String {
         self.mutex.lock()
-        defer { self.mutex.unlock() }
-        guard let configuration = self.configuration else { throw PasscodeError.unavailable }
-        return configuration.appGroupIdentifier
+        guard let configuration = self.configuration else {
+            self.mutex.unlock()
+            throw PasscodeError.unavailable
+        }
+        self.mutex.unlock()
+        if configuration.usePrivateKeychainForSharedItems {
+            return try self.privateAccessGroup()
+        } else {
+            return configuration.appGroupIdentifier
+        }
     }
 
     func biometricKeychainService() throws -> String {
