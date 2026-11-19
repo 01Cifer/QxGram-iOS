@@ -211,11 +211,11 @@ jobs:
           set -euo pipefail
           umask 077
           mkdir -p "$RUNNER_TEMP/qxgram-plain" "$RUNNER_TEMP/qxgram-artifacts"
-          trap 'rm -f "$RUNNER_TEMP/qxgram-plain/Telegram.ipa" "$RUNNER_TEMP/qxgram-config.json"' EXIT
-          cp bazel-bin/Telegram/Telegram.ipa "$RUNNER_TEMP/qxgram-plain/Telegram.ipa"
+          trap 'rm -f "$RUNNER_TEMP/qxgram-plain/QxGram.ipa" "$RUNNER_TEMP/qxgram-config.json"' EXIT
+          cp bazel-bin/Telegram/Telegram.ipa "$RUNNER_TEMP/qxgram-plain/QxGram.ipa"
           cd "$RUNNER_TEMP/qxgram-plain"
           ARCHIVE="$RUNNER_TEMP/qxgram-artifacts/QxGram.ipa.7z"
-          "$QXGRAM_7Z" a -t7z -mhe=on -p"$QXGRAM_ARTIFACT_PASSWORD" "$ARCHIVE" Telegram.ipa
+          "$QXGRAM_7Z" a -t7z -mhe=on -p"$QXGRAM_ARTIFACT_PASSWORD" "$ARCHIVE" QxGram.ipa
           "$QXGRAM_7Z" t -p"$QXGRAM_ARTIFACT_PASSWORD" "$ARCHIVE"
           WRONG_PASSWORD="qxgram-incorrect-password"
           if [[ "$WRONG_PASSWORD" == "$QXGRAM_ARTIFACT_PASSWORD" ]]; then WRONG_PASSWORD="${WRONG_PASSWORD}x"; fi
