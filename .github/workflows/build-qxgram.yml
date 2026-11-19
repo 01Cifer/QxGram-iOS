@@ -1,0 +1,209 @@
+name: QxGram iOS encrypted IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Runner label
+        required: false
+        default: macos-26-intel
+        type: choice
+        options:
+          - macos-26-intel
+          - macos-26
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 355
+
+    steps:
+      - name: Validate required secrets
+        env:
+          QXGRAM_API_ID: ${{ secrets.QXGRAM_API_ID }}
+          QXGRAM_API_HASH: ${{ secrets.QXGRAM_API_HASH }}
+          QXGRAM_ARTIFACT_PASSWORD: ${{ secrets.QXGRAM_ARTIFACT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          import sys
+          api_id = os.environ.get("QXGRAM_API_ID", "")
+          api_hash = os.environ.get("QXGRAM_API_HASH", "")
+          password = os.environ.get("QXGRAM_ARTIFACT_PASSWORD", "")
+          if not re.fullmatch(r"[0-9]+", api_id) or not 0 < int(api_id) < 2**31:
+              sys.exit("QXGRAM_API_ID is missing or invalid")
+          if not re.fullmatch(r"[0-9a-fA-F]{32}", api_hash):
+              sys.exit("QXGRAM_API_HASH is missing or invalid")
+          if not password or "\n" in password or "\r" in password:
+              sys.exit("QXGRAM_ARTIFACT_PASSWORD is missing or invalid")
+          PY
+
+      - name: Show runner
+        run: |
+          sw_vers
+          uname -m
+          sysctl -n hw.memsize
+          sysctl -n hw.ncpu
+          df -h /
+          /usr/bin/xcodebuild -version || true
+
+      - name: Free runner disk space
+        run: |
+          set -euo pipefail
+          for app in /Applications/Xcode_*.app; do
+            case "$app" in
+              /Applications/Xcode_26.6.app) echo "keeping $app" ;;
+              *) sudo rm -rf "$app" ;;
+            esac
+          done
+          sudo rm -rf /Library/Developer/CoreSimulator/Profiles/Runtimes/* || true
+          sudo rm -rf /Library/Developer/CoreSimulator/Volumes/* || true
+          rm -rf "$HOME/Library/Developer/Xcode/DerivedData" || true
+          df -h /
+
+      - name: Checkout the selected QxGram commit
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+          persist-credentials: false
+          path: telegram-ios
+
+      - name: Checkout upstream submodules
+        working-directory: telegram-ios
+        run: |
+          set -euo pipefail
+          git config -f .gitmodules submodule.submodules/rlottie/rlottie.url https://github.com/TelegramMessenger/rlottie.git
+          git config -f .gitmodules submodule.submodules/TgVoipWebrtc/tgcalls.url https://github.com/TelegramMessenger/tgcalls.git
+          git submodule sync --recursive
+          git submodule update --init --recursive --jobs 4
+
+      - name: Select Xcode 26.6
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Install Metal toolchain
+        run: |
+          set -euo pipefail
+          xcrun -sdk iphoneos metal --version || sudo xcodebuild -downloadComponent MetalToolchain
+          xcrun -sdk iphoneos metal --version
+
+      - name: Prepare Bazel 9.2.0
+        run: |
+          set -euo pipefail
+          BAZELISK="$(command -v bazelisk)"
+          export USE_BAZEL_VERSION=9.2.0
+          "$BAZELISK" --version
+          echo "USE_BAZEL_VERSION=9.2.0" >> "$GITHUB_ENV"
+
+      - name: Prepare 7-Zip
+        run: |
+          set -euo pipefail
+          if ! command -v 7zz >/dev/null && ! command -v 7z >/dev/null; then
+            brew install 7zip
+          fi
+          if command -v 7zz >/dev/null; then
+            echo "QXGRAM_7Z=$(command -v 7zz)" >> "$GITHUB_ENV"
+          else
+            echo "QXGRAM_7Z=$(command -v 7z)" >> "$GITHUB_ENV"
+          fi
+
+      - name: Prepare wasi-sdk for x86_64
+        if: runner.arch == 'X64'
+        working-directory: telegram-ios
+        run: |
+          set -euo pipefail
+          URL='https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-x86_64-macos.tar.gz'
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 "$URL" -o /tmp/wasi-sdk.tar.gz
+          mkdir -p /tmp/wasi-sdk
+          tar -xzf /tmp/wasi-sdk.tar.gz -C /tmp/wasi-sdk --strip-components=1
+          test -x /tmp/wasi-sdk/bin/clang++
+          : > /tmp/wasi-sdk/MODULE.bazel
+          python3 -c 'import base64,sys; open("/tmp/wasi-sdk/BUILD.bazel","wb").write(base64.b64decode(sys.argv[1]))' 'ZXhwb3J0c19maWxlcyhbImJpbi9jbGFuZysrIl0pCmZpbGVncm91cCgKICAgIG5hbWUgPSAiYWxsX2ZpbGVzIiwKICAgIHNyY3MgPSBnbG9iKFsiYmluLyoqIiwgImxpYi8qKiIsICJzaGFyZS8qKiJdKSwKICAgIHZpc2liaWxpdHkgPSBbIi8vdmlzaWJpbGl0eTpwdWJsaWMiXSwKKQo='
+          echo "build --override_repository=wasi_sdk_macos=/tmp/wasi-sdk" >> .bazelrc
+
+      - name: Refresh expired fake provisioning profiles
+        working-directory: telegram-ios
+        run: |
+          set -euo pipefail
+          CERTS=build-system/fake-codesigning/certs
+          PROFILES=build-system/fake-codesigning/profiles
+          openssl pkcs12 -legacy -in "$CERTS/SelfSigned.p12" -passin pass: -clcerts -nokeys -out /tmp/fake-cert.pem || openssl pkcs12 -in "$CERTS/SelfSigned.p12" -passin pass: -clcerts -nokeys -out /tmp/fake-cert.pem
+          openssl pkcs12 -legacy -in "$CERTS/SelfSigned.p12" -passin pass: -nocerts -nodes -out /tmp/fake-key.pem || openssl pkcs12 -in "$CERTS/SelfSigned.p12" -passin pass: -nocerts -nodes -out /tmp/fake-key.pem
+          for f in "$PROFILES"/*.mobileprovision; do
+            openssl cms -verify -inform DER -in "$f" -noverify -out /tmp/profile.plist
+            python3 -c 'import datetime,plistlib,sys; p=sys.argv[1]; d=plistlib.load(open(p,"rb")); d["ExpirationDate"]=datetime.datetime(2029,6,1); d["TimeToLive"]=900; plistlib.dump(d,open(p,"wb"))' /tmp/profile.plist
+            openssl cms -sign -binary -in /tmp/profile.plist -signer /tmp/fake-cert.pem -inkey /tmp/fake-key.pem -outform DER -nodetach -out "$f"
+          done
+
+      - name: Prepare private build configuration
+        working-directory: telegram-ios
+        env:
+          QXGRAM_API_ID: ${{ secrets.QXGRAM_API_ID }}
+          QXGRAM_API_HASH: ${{ secrets.QXGRAM_API_HASH }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 - <<'PY'
+          import json
+          import os
+          with open("build-system/appstore-configuration.json", encoding="utf-8") as source:
+              config = json.load(source)
+          config["api_id"] = os.environ["QXGRAM_API_ID"]
+          config["api_hash"] = os.environ["QXGRAM_API_HASH"]
+          with open(os.path.join(os.environ["RUNNER_TEMP"], "qxgram-config.json"), "w", encoding="utf-8") as target:
+              json.dump(config, target)
+          PY
+
+      - name: Build unsigned IPA
+        working-directory: telegram-ios
+        run: |
+          set -euo pipefail
+          BAZELISK="$(command -v bazelisk)"
+          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+          python3 -u build-system/Make/Make.py \
+            --bazel="$BAZELISK" \
+            --bazelUserRoot=/Users/runner/bazel-root \
+            build \
+            --configurationPath="$RUNNER_TEMP/qxgram-config.json" \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --configuration=release_arm64 \
+            --buildNumber="${{ github.run_number }}"
+          df -h /
+          du -shL bazel-out 2>/dev/null || true
+
+      - name: Encrypt and verify IPA
+        working-directory: telegram-ios
+        env:
+          QXGRAM_ARTIFACT_PASSWORD: ${{ secrets.QXGRAM_ARTIFACT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/qxgram-plain" "$RUNNER_TEMP/qxgram-artifacts"
+          trap 'rm -f "$RUNNER_TEMP/qxgram-plain/Telegram.ipa" "$RUNNER_TEMP/qxgram-config.json"' EXIT
+          cp bazel-bin/Telegram/Telegram.ipa "$RUNNER_TEMP/qxgram-plain/Telegram.ipa"
+          cd "$RUNNER_TEMP/qxgram-plain"
+          ARCHIVE="$RUNNER_TEMP/qxgram-artifacts/QxGram.ipa.7z"
+          "$QXGRAM_7Z" a -t7z -mhe=on -p"$QXGRAM_ARTIFACT_PASSWORD" "$ARCHIVE" Telegram.ipa
+          "$QXGRAM_7Z" t -p"$QXGRAM_ARTIFACT_PASSWORD" "$ARCHIVE"
+          WRONG_PASSWORD="qxgram-incorrect-password"
+          if [[ "$WRONG_PASSWORD" == "$QXGRAM_ARTIFACT_PASSWORD" ]]; then WRONG_PASSWORD="${WRONG_PASSWORD}x"; fi
+          if "$QXGRAM_7Z" l -p"$WRONG_PASSWORD" "$ARCHIVE" >/dev/null 2>&1; then
+            echo "Archive headers are not protected"
+            exit 1
+          fi
+
+      - name: Upload encrypted IPA only
+        uses: actions/upload-artifact@v4
+        with:
+          name: qxgram-ios-encrypted
+          path: ${{ runner.temp }}/qxgram-artifacts/QxGram.ipa.7z
+          if-no-files-found: error
+          retention-days: 1
