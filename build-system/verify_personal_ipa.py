@@ -90,7 +90,12 @@ def inspect_ipa(ipa_file, bundle_id):
         info = plistlib.loads(ipa.read(app_plists[0]))
         require(info.get("CFBundleIdentifier") == bundle_id, "unexpected bundle identifier")
         require(info.get("CFBundleDisplayName") == "QxGram", "unexpected app display name")
+        require(info.get("CFBundleName") == "QxGram", "unexpected bundle name")
         require(info.get("QxGramPersonalBuild") is True, "personal build marker is missing")
+        url_types = info.get("CFBundleURLTypes", [])
+        require(isinstance(url_types, list) and all(isinstance(item, dict) for item in url_types), "invalid URL types")
+        schemes = [scheme for item in url_types for scheme in item.get("CFBundleURLSchemes", [])]
+        require(schemes == ["qxgram"], "unexpected registered URL schemes")
         modes = info.get("UIBackgroundModes", [])
         require(isinstance(modes, list), "invalid background modes")
         require(set(modes) <= {"audio", "fetch", "location"}, "unsupported background modes are present")
@@ -126,6 +131,9 @@ def inspect_ipa(ipa_file, bundle_id):
         require(frameworks, "no embedded frameworks found")
         for framework in frameworks:
             require(not inspect_macho(ipa, framework, inspect_entitlements=True), "framework entitlements are present")
+            framework_info = plistlib.loads(ipa.read(framework.rsplit("/", 1)[0] + "/Info.plist"))
+            framework_id = framework_info.get("CFBundleIdentifier")
+            require(isinstance(framework_id, str) and framework_id.startswith(bundle_id + "."), "unexpected framework bundle identifier")
         return {
             "bundle_id": bundle_id,
             "entitlement_keys": sorted(entitlements),

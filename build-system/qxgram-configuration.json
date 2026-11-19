@@ -1,0 +1,14 @@
+{
+  "bundle_id": "org.qxgram.app",
+  "api_id": "",
+  "api_hash": "",
+  "team_id": "C67CF9S4VU",
+  "app_center_id": "",
+  "is_internal_build": "false",
+  "is_appstore_build": "false",
+  "appstore_id": "0",
+  "app_specific_url_scheme": "qxgram",
+  "premium_iap_product_id": "",
+  "enable_siri": false,
+  "enable_icloud": false
+}

@@ -500,7 +500,9 @@ def resolve_codesigning(arguments, base_path, build_configuration, provisioning_
         profile_source.copy_certificates_to_destination(destination_path=additional_codesigning_output_path + '/certs')
 
     return ResolvedCodesigningData(
-        aps_environment=profile_source.resolve_aps_environment(),
+        # Personal builds request no APNs entitlement and use a minimal fake
+        # profile. The value is unused by their empty entitlements template.
+        aps_environment='development' if getattr(arguments, 'personalBuild', False) else profile_source.resolve_aps_environment(),
         use_xcode_managed_codesigning=profile_source.use_xcode_managed_codesigning()
     )
 

@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 env:
-  QXGRAM_BUNDLE_ID: org.qxgram.ios
+  QXGRAM_BUNDLE_ID: org.qxgram.app
 
 jobs:
   build:
@@ -88,7 +88,7 @@ jobs:
 
       - name: Test personal IPA verifier
         working-directory: telegram-ios
-        run: python3 -B -m unittest discover -s build-system/tests -p 'test_verify_personal_ipa.py' -v
+        run: python3 -B -m unittest discover -s build-system/tests -p 'test_*personal*.py' -v
 
       - name: Select Xcode 26.6
         run: |
@@ -146,7 +146,7 @@ jobs:
           openssl pkcs12 -legacy -in "$CERTS/SelfSigned.p12" -passin pass: -nocerts -nodes -out /tmp/fake-key.pem || openssl pkcs12 -in "$CERTS/SelfSigned.p12" -passin pass: -nocerts -nodes -out /tmp/fake-key.pem
           for f in "$PROFILES"/*.mobileprovision; do
             openssl cms -verify -inform DER -in "$f" -noverify -out /tmp/profile.plist
-            python3 -c 'import datetime,os,plistlib,sys; p=sys.argv[1]; d=plistlib.load(open(p,"rb")); e=d["Entitlements"]; old=d["TeamIdentifier"][0]+".ph.telegra.Telegraph"; current=e["application-identifier"]; assert current == old or current.startswith(old+"."); e["application-identifier"]=d["TeamIdentifier"][0]+"."+os.environ["QXGRAM_BUNDLE_ID"]+current[len(old):]; d["ExpirationDate"]=datetime.datetime(2029,6,1); d["TimeToLive"]=900; plistlib.dump(d,open(p,"wb"))' /tmp/profile.plist
+            python3 build-system/prepare_personal_profile.py /tmp/profile.plist "$(basename "$f" .mobileprovision)" "$QXGRAM_BUNDLE_ID"
             openssl cms -sign -binary -in /tmp/profile.plist -signer /tmp/fake-cert.pem -inkey /tmp/fake-key.pem -outform DER -nodetach -out "$f"
           done
 
@@ -161,7 +161,7 @@ jobs:
           python3 - <<'PY'
           import json
           import os
-          with open("build-system/appstore-configuration.json", encoding="utf-8") as source:
+          with open("build-system/qxgram-configuration.json", encoding="utf-8") as source:
               config = json.load(source)
           config["api_id"] = os.environ["QXGRAM_API_ID"]
           config["api_hash"] = os.environ["QXGRAM_API_HASH"]

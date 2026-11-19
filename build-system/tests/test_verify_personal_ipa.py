@@ -10,7 +10,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from verify_personal_ipa import VerificationError, inspect_ipa
 
 
-BUNDLE_ID = "org.qxgram.ios"
+BUNDLE_ID = "org.qxgram.app"
 ROOT = "Payload/Telegram.app/"
 
 
@@ -25,12 +25,14 @@ def macho(entitlements, platform=2):
     return header + build_version + signature_command + signature
 
 
-def make_ipa(entitlements=None, *, marker=True, background=None, extension=False, platform=2, task_ids=False, framework_entitlements=None):
+def make_ipa(entitlements=None, *, marker=True, background=None, extension=False, platform=2, task_ids=False, framework_entitlements=None, schemes=None, framework_id=None):
     data = io.BytesIO()
     info = {
         "CFBundleIdentifier": BUNDLE_ID,
         "CFBundleDisplayName": "QxGram",
+        "CFBundleName": "QxGram",
         "CFBundleExecutable": "Telegram",
+        "CFBundleURLTypes": [{"CFBundleURLSchemes": ["qxgram"] if schemes is None else schemes}],
         "QxGramPersonalBuild": marker,
         "UIBackgroundModes": ["audio"] if background is None else background,
     }
@@ -40,6 +42,9 @@ def make_ipa(entitlements=None, *, marker=True, background=None, extension=False
         ipa.writestr(ROOT + "Info.plist", plistlib.dumps(info))
         ipa.writestr(ROOT + "Telegram", macho(entitlements or {}, platform=platform))
         ipa.writestr(ROOT + "Frameworks/Test.framework/Test", macho(framework_entitlements or {}))
+        ipa.writestr(ROOT + "Frameworks/Test.framework/Info.plist", plistlib.dumps({
+            "CFBundleIdentifier": framework_id or BUNDLE_ID + ".Test",
+        }))
         if extension:
             ipa.writestr(ROOT + "PlugIns/Test.appex/Info.plist", b"test")
     data.seek(0)
@@ -59,6 +64,15 @@ class VerifyPersonalIpaTests(unittest.TestCase):
     def test_rejects_missing_personal_marker(self):
         with self.assertRaisesRegex(VerificationError, "marker"):
             inspect_ipa(make_ipa(marker=False), BUNDLE_ID)
+
+    def test_rejects_telegram_url_schemes(self):
+        for scheme in ["tg", "tonsite", "telegram", "ton", "tc"]:
+            with self.subTest(scheme=scheme), self.assertRaisesRegex(VerificationError, "URL schemes"):
+                inspect_ipa(make_ipa(schemes=["qxgram", scheme]), BUNDLE_ID)
+
+    def test_rejects_old_framework_identifier(self):
+        with self.assertRaisesRegex(VerificationError, "framework bundle identifier"):
+            inspect_ipa(make_ipa(framework_id="org.example.old.Test"), BUNDLE_ID)
 
     def test_rejects_push_background_mode(self):
         with self.assertRaisesRegex(VerificationError, "background modes"):

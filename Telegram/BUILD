@@ -616,10 +616,32 @@ plist_fragment(
 )
 
 plist_fragment(
+    name = "QxGramUrlTypesInfoPlist",
+    extension = "plist",
+    template = """
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>CFBundleURLName</key>
+            <string>{telegram_bundle_id}</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>qxgram</string>
+            </array>
+        </dict>
+    </array>
+    """.format(telegram_bundle_id = telegram_bundle_id),
+)
+
+plist_fragment(
     name = "TelegramBackgroundModesPlist",
     extension = "plist",
     template = """
     <key>CFBundleDisplayName</key>
+    <string>Telegram</string>
+    <key>CFBundleName</key>
     <string>Telegram</string>
     <key>BGTaskSchedulerPermittedIdentifiers</key>
     <array>
@@ -646,6 +668,8 @@ plist_fragment(
     <key>QxGramPersonalBuild</key>
     <true/>
     <key>CFBundleDisplayName</key>
+    <string>QxGram</string>
+    <key>CFBundleName</key>
     <string>QxGram</string>
     <key>UIBackgroundModes</key>
     <array>
@@ -1673,8 +1697,6 @@ plist_fragment(
     <string>en</string>
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}</string>
-    <key>CFBundleName</key>
-    <string>Telegram</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleSignature</key>
@@ -1870,6 +1892,10 @@ apple_prebuilt_watchos_application(
 
 ios_application(
     name = "Telegram",
+    bundle_name = select({
+        ":personalBuildSetting": "QxGram",
+        "//conditions:default": "Telegram",
+    }),
     bundle_id = "{telegram_bundle_id}".format(
         telegram_bundle_id = telegram_bundle_id,
     ),
@@ -1885,10 +1911,9 @@ ios_application(
         ":BuildNumberInfoPlist",
         ":VersionInfoPlist",
         ":RequiredDeviceCapabilitiesPlist",
-        ":UrlTypesInfoPlist",
     ] + select({
-        ":personalBuildSetting": [":QxGramPersonalPlist"],
-        "//conditions:default": [":TelegramBackgroundModesPlist"],
+        ":personalBuildSetting": [":QxGramPersonalPlist", ":QxGramUrlTypesInfoPlist"],
+        "//conditions:default": [":TelegramBackgroundModesPlist", ":UrlTypesInfoPlist"],
     }),
     app_icons = [ ":{}_icon".format(name) for name in composer_icon_folders ],
     alternate_icons = [
