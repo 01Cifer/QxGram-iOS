@@ -128,13 +128,36 @@ jobs:
         run: |
           set -euo pipefail
           URL='https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-33/wasi-sdk-33.0-x86_64-macos.tar.gz'
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 "$URL" -o /tmp/wasi-sdk.tar.gz
-          mkdir -p /tmp/wasi-sdk
-          tar -xzf /tmp/wasi-sdk.tar.gz -C /tmp/wasi-sdk --strip-components=1
-          test -x /tmp/wasi-sdk/bin/clang++
-          : > /tmp/wasi-sdk/MODULE.bazel
-          python3 -c 'import base64,sys; open("/tmp/wasi-sdk/BUILD.bazel","wb").write(base64.b64decode(sys.argv[1]))' 'ZXhwb3J0c19maWxlcyhbImJpbi9jbGFuZysrIl0pCmZpbGVncm91cCgKICAgIG5hbWUgPSAiYWxsX2ZpbGVzIiwKICAgIHNyY3MgPSBnbG9iKFsiYmluLyoqIiwgImxpYi8qKiIsICJzaGFyZS8qKiJdKSwKICAgIHZpc2liaWxpdHkgPSBbIi8vdmlzaWJpbGl0eTpwdWJsaWMiXSwKKQo='
-          echo "build --override_repository=wasi_sdk_macos=/tmp/wasi-sdk" >> .bazelrc
+          SDK_DIR="$RUNNER_TEMP/qxgram-wasi-sdk"
+          ARCHIVE="$RUNNER_TEMP/wasi-sdk.tar.gz"
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 "$URL" -o "$ARCHIVE"
+          echo "18f3f201ba9734e6a4455b0b6410690395a55e9ffa9f6f5066f66083a94b93b3  $ARCHIVE" | shasum -a 256 -c -
+          mkdir -p "$SDK_DIR"
+          tar -xzf "$ARCHIVE" -C "$SDK_DIR" --strip-components=1
+          test -x "$SDK_DIR/bin/clang++"
+          test -f "$SDK_DIR/share/wasi-sysroot/include/wasm32-wasip1/noeh/c++/v1/cstdint"
+          # Clang also tests this otherwise-empty directory before using target headers.
+          # Bazel's glob omits empty directories, so keep it in the execroot.
+          mkdir -p "$SDK_DIR/share/wasi-sysroot/include/c++/v1"
+          printf 'Bazel directory marker\n' > "$SDK_DIR/share/wasi-sysroot/include/c++/v1/qxgram_bazel_marker"
+          : > "$SDK_DIR/MODULE.bazel"
+          python3 -c 'import base64,sys; open(sys.argv[1],"wb").write(base64.b64decode(sys.argv[2]))' "$SDK_DIR/BUILD.bazel" 'ZXhwb3J0c19maWxlcyhbImJpbi9jbGFuZysrIl0pCmZpbGVncm91cCgKICAgIG5hbWUgPSAiYWxsX2ZpbGVzIiwKICAgIHNyY3MgPSBnbG9iKFsiYmluLyoqIiwgImxpYi8qKiIsICJzaGFyZS8qKiJdKSwKICAgIHZpc2liaWxpdHkgPSBbIi8vdmlzaWJpbGl0eTpwdWJsaWMiXSwKKQo='
+          cat > "$RUNNER_TEMP/qxgram-wasi-smoke.cpp" <<'CPP'
+          #include <cstdint>
+          #include <functional>
+          #include <string>
+          extern "C" int32_t qxgram_wasi_smoke() {
+              std::string text("QxGram");
+              std::function<int32_t()> length = [&text]() { return static_cast<int32_t>(text.size()); };
+              return length();
+          }
+          CPP
+          "$SDK_DIR/bin/clang++" --target=wasm32-wasip1 --sysroot="$SDK_DIR/share/wasi-sysroot" \
+            -isystem "$SDK_DIR/share/wasi-sysroot/include/wasm32-wasip1/noeh/c++/v1" \
+            -std=c++17 -Oz -flto -fno-exceptions -fno-rtti -mexec-model=reactor \
+            -Wl,--no-entry,--strip-all "$RUNNER_TEMP/qxgram-wasi-smoke.cpp" -o "$RUNNER_TEMP/qxgram-wasi-smoke.wasm"
+          test -s "$RUNNER_TEMP/qxgram-wasi-smoke.wasm"
+          echo "build --override_repository=wasi_sdk_macos=$SDK_DIR" >> .bazelrc
 
       - name: Refresh expired fake provisioning profiles
         working-directory: telegram-ios

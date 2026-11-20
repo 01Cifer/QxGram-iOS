@@ -51,7 +51,10 @@ _WASM_CORE_CMD = """
 set -e
 SDK_CLANG="$(execpath {sdk}//:bin/clang++)"
 SDK_DIR="$$(cd "$$(dirname "$$SDK_CLANG")/.." && pwd)"
+SDK_CXX_INCLUDE="$$SDK_DIR/share/wasi-sysroot/include/wasm32-wasip1/noeh/c++/v1"
+test -f "$$SDK_CXX_INCLUDE/cstdint"
 "$$SDK_CLANG" --target=wasm32-wasip1 --sysroot="$$SDK_DIR/share/wasi-sysroot" \\
+    -isystem "$$SDK_CXX_INCLUDE" \\
     -std=c++17 -Oz -flto -fno-exceptions -fno-rtti \\
     -mexec-model=reactor -Wl,--no-entry,--strip-all \\
     -Isubmodules/TgVoipWebrtc/tgcalls/tgcalls \\
