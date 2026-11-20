@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import Postbox
 import TelegramCore
+import TelegramUIPreferences
 import TemporaryCachedPeerDataManager
 import Emoji
 import AccountContext
@@ -68,6 +69,7 @@ func chatHistoryEntriesForView(
         return ([], currentState)
     }
     var entries: [ChatHistoryEntry] = []
+    var archivedMessages: [Message] = []
     var adminRanks: [PeerId: CachedChannelAdminRank] = [:]
     var stickersEnabled = true
     var chatPeer: Peer?
@@ -79,6 +81,9 @@ func chatHistoryEntriesForView(
                     if id == cachedChannelAdminRanksEntryId(peerId: peerId), let data = data?.get(CachedChannelAdminRanks.self) {
                         adminRanks = data.ranks
                     }
+                }
+                if case .peer = location, id == qxGramDeletedArchiveEntryId(peerId: peerId), let data = data?.get(QxGramArchivedMessages.self), QxGramSettings(accountId: context.account.id).value(.showDeletedMessages) {
+                    archivedMessages = data.messages.map { qxGramSynthesizeArchivedMessage($0) }
                 }
             } else if case let .peer(_, peer) = additionalEntry {
                 chatPeer = peer
@@ -678,6 +683,13 @@ func chatHistoryEntriesForView(
             }
         }
         
+        if !archivedMessages.isEmpty {
+            for message in archivedMessages {
+                entries.append(.MessageEntry(message, presentationData, false, nil, .none, ChatMessageEntryAttributes(rank: nil, isContact: false, contentTypeHint: .generic, updatingMedia: nil, isPlaying: false, isCentered: false, authorStoryStats: nil, displayContinueThreadFooter: false, pinToTop: false)))
+            }
+            entries.sort()
+        }
+
         if !dynamicAdMessages.isEmpty {
             assert(entries.sorted() == entries)
             for message in dynamicAdMessages {

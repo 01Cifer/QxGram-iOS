@@ -4597,6 +4597,7 @@ func replayFinalState(
             case let .DeleteEphemeralMessages(peerId, ids):
                 deleteEphemeralMessages(transaction: transaction, peerId: peerId, ids: ids)
             case let .DeleteMessagesWithGlobalIds(ids):
+                qxGramArchiveMessages(transaction: transaction, messages: transaction.messageIdsForGlobalIds(ids).compactMap { transaction.getMessage($0) }, reason: .deletedByOther)
                 var resourceIds: [MediaResourceId] = []
                 transaction.deleteMessagesWithGlobalIds(ids, forEachMedia: { media in
                     addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)
@@ -4606,6 +4607,7 @@ func replayFinalState(
                 }
                 deletedMessageIds.append(contentsOf: ids.map { .global($0) })
             case let .DeleteMessages(ids):
+                qxGramArchiveMessages(transaction: transaction, messages: ids.compactMap { transaction.getMessage($0) }, reason: .deletedBySelf)
                 _internal_deleteMessages(transaction: transaction, mediaBox: mediaBox, ids: ids, manualAddMessageThreadStatsDifference: { id, add, remove in
                     addMessageThreadStatsDifference(threadKey: id, remove: remove, addedMessagePeer: nil, addedMessageId: nil, isOutgoing: false)
                 })
@@ -4614,6 +4616,14 @@ func replayFinalState(
                 if let message = transaction.getMessage(id) {
                     updatePeerChatInclusionWithMinTimestamp(transaction: transaction, id: id.peerId, minTimestamp: message.timestamp, forceRootGroupIfNotExists: false)
                 }
+                var archivedRangeMessages: [Message] = []
+                transaction.withAllMessages(peerId: id.peerId, namespace: id.namespace) { message in
+                    if message.id.id <= id.id {
+                        archivedRangeMessages.append(message)
+                    }
+                    return true
+                }
+                qxGramArchiveMessages(transaction: transaction, messages: archivedRangeMessages, reason: .deletedByOther)
                 var resourceIds: [MediaResourceId] = []
                 transaction.deleteMessagesInRange(peerId: id.peerId, namespace: id.namespace, minId: 1, maxId: id.id, forEachMedia: { media in
                     addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)

@@ -1594,6 +1594,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             if peerId.namespace == Namespaces.Peer.CloudChannel {
                 additionalData.append(.cacheEntry(cachedChannelAdminRanksEntryId(peerId: peerId)))
             }
+            additionalData.append(.cacheEntry(qxGramDeletedArchiveEntryId(peerId: peerId)))
             additionalData.append(.peer(peerId))
             if peerId.namespace == Namespaces.Peer.CloudUser || peerId.namespace == Namespaces.Peer.SecretChat {
                 additionalData.append(.peerIsContact(peerId))

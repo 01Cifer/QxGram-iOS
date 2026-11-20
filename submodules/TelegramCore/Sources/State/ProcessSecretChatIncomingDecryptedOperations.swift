@@ -301,6 +301,7 @@ func processSecretChatIncomingDecryptedOperations(encryptionProvider: Encryption
                                                 }
                                             }
                                         }
+                                        qxGramArchiveMessages(transaction: transaction, messages: filteredMessageIds.compactMap { transaction.getMessage($0) }, reason: .deletedByOther)
                                         _internal_deleteMessages(transaction: transaction, mediaBox: mediaBox, ids: filteredMessageIds)
                                     }
                                 case .clearHistory:
