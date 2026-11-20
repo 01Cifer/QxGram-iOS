@@ -11,7 +11,12 @@ ICON_SET = ROOT / "Telegram/Telegram-iOS/QxGramAppIcons.xcassets/QxGram.appicons
 class PersonalIconTests(unittest.TestCase):
     def test_all_catalog_icons_are_square_and_opaque(self):
         contents = json.loads((ICON_SET / "Contents.json").read_text(encoding="utf-8"))
-        self.assertEqual(len(contents["images"]), 18)
+        self.assertEqual(len(contents["images"]), 17)
+        self.assertFalse((ICON_SET / "ipad-76@1x.png").exists())
+        self.assertFalse(any(
+            item["idiom"] == "ipad" and item["size"] == "76x76" and item["scale"] == "1x"
+            for item in contents["images"]
+        ))
         for item in contents["images"]:
             with self.subTest(filename=item["filename"]):
                 pixels = float(item["size"].split("x")[0]) * int(item["scale"][0])
