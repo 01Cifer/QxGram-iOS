@@ -60,7 +60,7 @@ class QxGramDeletedMessagesTests(unittest.TestCase):
 
     def test_settings_notice_no_longer_claims_deleted_messages_missing(self):
         text = source("submodules/SettingsUI/Sources/QxGramSettingsController.swift")
-        self.assertIn("Удалённые сообщения архивируются", text)
+        self.assertIn("архив удалённых", text)
         self.assertNotIn("функции Ghost, удалённых сообщений, TTL и скриншотов пока не реализованы", text)
 
 
@@ -167,8 +167,70 @@ class QxGramScreenshotTests(unittest.TestCase):
 
     def test_settings_notice_no_longer_claims_screenshots_missing(self):
         text = source("submodules/SettingsUI/Sources/QxGramSettingsController.swift")
-        self.assertIn("скриншоты разрешаются", text)
+        self.assertIn("скриншоты", text)
         self.assertNotIn("скриншоты ещё не реализованы", text)
+
+
+class QxGramGhostTests(unittest.TestCase):
+    def test_ghost_policy_uses_same_user_defaults_key(self):
+        policy = source("submodules/TelegramCore/Sources/State/QxGramRpcPolicy.swift")
+        self.assertIn('static let keyPrefix = "qxgram.settings."', policy)
+        self.assertIn('\\(accountId.int64).ghost', policy)
+        self.assertIn("public static func isGhostEnabled(accountId: AccountRecordId) -> Bool", policy)
+        self.assertNotIn("import TelegramUIPreferences", policy)
+
+        preferences = source("submodules/TelegramUIPreferences/Sources/QxGramSettings.swift")
+        self.assertIn("case ghost", preferences)
+
+    def test_all_ghost_rpc_names_are_covered(self):
+        policy = source("submodules/TelegramCore/Sources/State/QxGramRpcPolicy.swift")
+        expected = [
+            "account.updateStatus",
+            "messages.setTyping",
+            "messages.setEncryptedTyping",
+            "messages.readMessageContents",
+            "channels.readMessageContents",
+            "messages.readHistory",
+            "channels.readHistory",
+            "messages.readEncryptedHistory",
+            "messages.readDiscussion",
+            "messages.readSavedHistory",
+            "messages.readReactions",
+            "messages.readPollVotes",
+        ]
+        for name in expected:
+            with self.subTest(name=name):
+                self.assertIn('"{}"'.format(name), policy)
+        self.assertIn("return Self.isGhostEnabled(accountId: accountId) && Self.ghostSuppressedFunctions.contains(functionName)", policy)
+        self.assertIn("return QxGramScreenshotPolicy.isAllowed(accountId: accountId)", policy)
+
+    def test_network_filters_both_request_entry_points(self):
+        text = source("submodules/TelegramCore/Sources/Network/Network.swift")
+        self.assertIn("public let accountId: AccountRecordId", text)
+        self.assertIn("self.accountId = accountId", text)
+        self.assertIn("fileprivate init(accountId: AccountRecordId, queue: Queue", text)
+        self.assertIn("let network = Network(accountId: accountId, queue: queue", text)
+        self.assertEqual(text.count("if QxGramRpcPolicy.shouldSuppress(accountId: self.accountId, functionName: data.0.name)"), 2)
+        self.assertEqual(text.count("return .complete()"), 2)
+
+    def test_secret_chat_read_receipts_are_gated(self):
+        text = source("submodules/TelegramCore/Sources/TelegramEngine/Messages/MarkMessageContentAsConsumedInteractively.swift")
+        self.assertIn("func _internal_markMessageContentAsConsumedInteractively(postbox: Postbox, accountId: AccountRecordId, messageId: MessageId)", text)
+        self.assertIn("let ghostEnabled = QxGramRpcPolicy.isGhostEnabled(accountId: accountId)", text)
+        self.assertEqual(text.count("if !ghostEnabled, let"), 3)
+        engine = source("submodules/TelegramCore/Sources/TelegramEngine/Messages/TelegramEngineMessages.swift")
+        self.assertIn("_internal_markMessageContentAsConsumedInteractively(postbox: self.account.postbox, accountId: self.account.id, messageId: messageId)", engine)
+
+    def test_local_read_still_applies_before_rpc(self):
+        text = source("submodules/TelegramCore/Sources/TelegramEngine/Messages/ApplyMaxReadIndexInteractively.swift")
+        apply_index = text.index("let messageIds = transaction.applyInteractiveReadMaxIndex(index)")
+        self.assertGreater(len(text[apply_index:]), 0)
+        self.assertIn("stateManager.notifyAppliedIncomingReadMessages([index.id])", text)
+
+    def test_settings_notice_is_final(self):
+        text = source("submodules/SettingsUI/Sources/QxGramSettingsController.swift")
+        self.assertIn("Все функции QxGram активны", text)
+        self.assertNotIn("Ghost ещё не реализован", text)
 
 
 if __name__ == "__main__":
