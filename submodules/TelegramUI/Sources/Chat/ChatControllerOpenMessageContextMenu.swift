@@ -336,7 +336,8 @@ extension ChatControllerImpl {
                 }
                 
                 let isSecret = self.presentationInterfaceState.copyProtectionEnabled || self.presentationInterfaceState.myCopyProtectionEnabled || self.chatLocation.peerId?.namespace == Namespaces.Peer.SecretChat
-                let controller = makeContextController(presentationData: self.presentationData, source: source, items: actionsSignal, recognizer: recognizer, gesture: gesture, disableScreenshots: isSecret, hideReactionPanelTail: hideReactionPanelTail)
+                let screenshotsAllowed = QxGramScreenshotPolicy.isAllowed(accountId: self.context.account.id)
+                let controller = makeContextController(presentationData: self.presentationData, source: source, items: actionsSignal, recognizer: recognizer, gesture: gesture, disableScreenshots: QxGramScreenshotPolicy.shouldProtect(isSecret: isSecret, screenshotsAllowed: screenshotsAllowed), hideReactionPanelTail: hideReactionPanelTail)
                 controller.dismissed = { [weak self] in
                     self?.canReadHistory.set(true)
                 }

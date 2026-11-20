@@ -326,7 +326,7 @@ public class ChatMessageRichDataBubbleContentNode: ChatMessageBubbleContentNode 
     /// than captured once: `isCopyProtectionEnabled` is a peer setting that can flip while the
     /// bubble is on screen.
     private static func isCaptureProtected(item: ChatMessageBubbleContentItem) -> Bool {
-        return item.associatedData.isCopyProtectionEnabled || item.message.isCopyProtected()
+        return QxGramScreenshotPolicy.shouldProtect(isSecret: item.associatedData.isCopyProtectionEnabled || item.message.isCopyProtected(), screenshotsAllowed: QxGramScreenshotPolicy.isAllowed(accountId: item.context.account.id))
     }
 
     /// Builds (or reuses) the V2View. Same-message stableVersion bumps (streamed AI chunks) reuse

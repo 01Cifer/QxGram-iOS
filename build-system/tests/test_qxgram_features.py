@@ -115,5 +115,61 @@ class QxGramTtlMediaTests(unittest.TestCase):
         self.assertIn("qxGramSynthesizeArchivedMessage($0, showTtl: qxGramSettings.value(.showTtl))", source("submodules/TelegramUI/Sources/ChatHistoryEntriesForView.swift"))
 
 
+class QxGramScreenshotTests(unittest.TestCase):
+    def test_policy_key_matches_settings_and_has_no_ui_dependency(self):
+        policy = source("submodules/TelegramCore/Sources/State/QxGramScreenshotPolicy.swift")
+        self.assertIn('static let keyPrefix = "qxgram.settings."', policy)
+        self.assertIn('\\(accountId.int64).allowScreenshots', policy)
+        self.assertIn("public static func shouldProtect(isSecret: Bool, screenshotsAllowed: Bool) -> Bool", policy)
+        self.assertIn("return isSecret && !screenshotsAllowed", policy)
+        self.assertNotIn("import TelegramUIPreferences", policy)
+
+        preferences = source("submodules/TelegramUIPreferences/Sources/QxGramSettings.swift")
+        self.assertIn('private static let keyPrefix = "qxgram.settings."', preferences)
+        self.assertIn("case allowScreenshots", preferences)
+
+    def test_secret_chat_screenshot_notification_is_suppressed(self):
+        text = source("submodules/TelegramCore/Sources/SecretChats/SetSecretChatMessageAutoremoveTimeoutInteractively.swift")
+        self.assertIn("func _internal_addSecretChatMessageScreenshot(account: Account, peerId: PeerId)", text)
+        self.assertIn("guard !QxGramScreenshotPolicy.isAllowed(accountId: account.id) else", text)
+        self.assertIn("return .complete()", text)
+
+        controller = source("submodules/TelegramUI/Sources/ChatController.swift")
+        self.assertIn("if peerId.namespace == Namespaces.Peer.SecretChat && !QxGramScreenshotPolicy.isAllowed(accountId: self.context.account.id)", controller)
+
+    def test_local_protection_is_gated_everywhere(self):
+        checks = {
+            "submodules/TelegramUI/Sources/ChatControllerNode.swift": [
+                "QxGramScreenshotPolicy.shouldProtect(isSecret: chatLocation.peerId?.namespace",
+                "let effectiveIsSecret = QxGramScreenshotPolicy.shouldProtect(isSecret: isSecret",
+                "screenshotsAllowed: QxGramScreenshotPolicy.isAllowed(accountId: strongSelf.context.account.id)",
+                "self.qxGramScreenshotSettingsObserver = NotificationCenter.default.addObserver(forName: .qxGramSettingsDidChange",
+            ],
+            "submodules/TelegramUI/Sources/ChatController.swift": [
+                "disableScreenshots: QxGramScreenshotPolicy.shouldProtect(isSecret: isSecret, screenshotsAllowed: screenshotsAllowed)",
+            ],
+            "submodules/TelegramUI/Sources/Chat/ChatControllerOpenMessageContextMenu.swift": [
+                "disableScreenshots: QxGramScreenshotPolicy.shouldProtect(isSecret: isSecret, screenshotsAllowed: screenshotsAllowed)",
+            ],
+            "submodules/TelegramUI/Components/Chat/ChatMessageInteractiveMediaNode/Sources/ChatMessageInteractiveMediaNode.swift": [
+                "captureProtected: QxGramScreenshotPolicy.shouldProtect(isSecret: associatedData.isCopyProtectionEnabled",
+                "strongSelf.imageNode.captureProtected = QxGramScreenshotPolicy.shouldProtect(isSecret: associatedData.isCopyProtectionEnabled",
+            ],
+            "submodules/TelegramUI/Components/Chat/ChatMessageRichDataBubbleContentNode/Sources/ChatMessageRichDataBubbleContentNode.swift": [
+                "return QxGramScreenshotPolicy.shouldProtect(isSecret: item.associatedData.isCopyProtectionEnabled || item.message.isCopyProtected(), screenshotsAllowed: QxGramScreenshotPolicy.isAllowed(accountId: item.context.account.id))",
+            ],
+        }
+        for relative_path, needles in checks.items():
+            text = source(relative_path)
+            for needle in needles:
+                with self.subTest(path=relative_path, needle=needle):
+                    self.assertIn(needle, text)
+
+    def test_settings_notice_no_longer_claims_screenshots_missing(self):
+        text = source("submodules/SettingsUI/Sources/QxGramSettingsController.swift")
+        self.assertIn("скриншоты разрешаются", text)
+        self.assertNotIn("скриншоты ещё не реализованы", text)
+
+
 if __name__ == "__main__":
     unittest.main()

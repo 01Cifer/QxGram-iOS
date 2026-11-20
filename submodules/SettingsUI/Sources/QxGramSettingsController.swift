@@ -140,7 +140,7 @@ private enum QxGramSettingsEntry: ItemListNodeEntry {
             setting = .allowScreenshots
             value = current
         case .pendingNotice:
-            return ItemListTextItem(presentationData: presentationData, text: .plain("Удалённые сообщения архивируются и показываются в чате. Ghost, TTL и скриншоты ещё не реализованы."), sectionId: self.section)
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Удалённые сообщения архивируются, TTL-медиа сохраняется, скриншоты разрешаются. Ghost ещё не реализован."), sectionId: self.section)
         case let .cache(label, isEnabled):
             return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, title: "Очистить кэш", enabled: isEnabled, label: label, sectionId: self.section, style: .blocks, disclosureStyle: .none, action: {
                 arguments.clearCache()

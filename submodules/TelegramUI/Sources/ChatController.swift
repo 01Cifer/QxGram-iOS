@@ -2274,7 +2274,8 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
             }
 
             let isSecret = strongSelf.presentationInterfaceState.copyProtectionEnabled || strongSelf.chatLocation.peerId?.namespace == Namespaces.Peer.SecretChat
-            let pinchController = makePinchController(sourceNode: sourceNode, disableScreenshots: isSecret, getContentAreaInScreenSpace: {
+            let screenshotsAllowed = QxGramScreenshotPolicy.isAllowed(accountId: strongSelf.context.account.id)
+            let pinchController = makePinchController(sourceNode: sourceNode, disableScreenshots: QxGramScreenshotPolicy.shouldProtect(isSecret: isSecret, screenshotsAllowed: screenshotsAllowed), getContentAreaInScreenSpace: {
                 guard let strongSelf = self else {
                     return CGRect()
                 }
@@ -7790,7 +7791,7 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
     // display node reparented and its layout updated, so viewDidAppear never runs for it.
     private func setupScreenCaptureDetectionIfNeeded() {
         if case let .peer(peerId) = self.chatLocation, self.screenCaptureManager == nil {
-            if peerId.namespace == Namespaces.Peer.SecretChat {
+            if peerId.namespace == Namespaces.Peer.SecretChat && !QxGramScreenshotPolicy.isAllowed(accountId: self.context.account.id) {
                 self.screenCaptureManager = ScreenCaptureDetectionManager(check: { [weak self] in
                     // Returning false keeps the screen-recording poll alive until the chat is actually
                     // visible in the foreground, so a recording started behind a covering screen or while

@@ -470,6 +470,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
     private var openStickersBeginWithEmoji: Bool = false
     private var openStickersDisposable: Disposable?
     private var displayVideoUnmuteTipDisposable: Disposable?
+    private var qxGramScreenshotSettingsObserver: NSObjectProtocol?
     
     private var onLayoutCompletions: [(ContainedViewLayoutTransition) -> Void] = []
 
@@ -499,7 +500,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         
         self.floatingTopicsPanelContainer = ChatControllerTitlePanelNodeContainer()
         
-        setLayerDisableScreenshots(self.titleAccessoryPanelContainer.layer, chatLocation.peerId?.namespace == Namespaces.Peer.SecretChat)
+        setLayerDisableScreenshots(self.titleAccessoryPanelContainer.layer, QxGramScreenshotPolicy.shouldProtect(isSecret: chatLocation.peerId?.namespace == Namespaces.Peer.SecretChat, screenshotsAllowed: QxGramScreenshotPolicy.isAllowed(accountId: context.account.id)))
         
         self.inputContextPanelContainer = ChatControllerTitlePanelNodeContainer()
         self.inputContextOverTextPanelContainer = ChatControllerTitlePanelNodeContainer()
@@ -1061,6 +1062,9 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
     }
     
     deinit {
+        if let observer = self.qxGramScreenshotSettingsObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
         self.interactiveEmojisDisposable?.dispose()
         self.openStickersDisposable?.dispose()
         self.displayVideoUnmuteTipDisposable?.dispose()
@@ -1071,6 +1075,23 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
     
     override func didLoad() {
         super.didLoad()
+        
+        self.qxGramScreenshotSettingsObserver = NotificationCenter.default.addObserver(forName: .qxGramSettingsDidChange, object: nil, queue: .main) { [weak self] notification in
+            guard let strongSelf = self else {
+                return
+            }
+            if let accountId = notification.userInfo?["accountId"] as? Int64, accountId != strongSelf.context.account.id.int64 {
+                return
+            }
+            let isSecret = strongSelf.chatPresentationInterfaceState.copyProtectionEnabled || strongSelf.chatLocation.peerId?.namespace == Namespaces.Peer.SecretChat || strongSelf.chatLocation.peerId?.isVerificationCodes == true
+            let effectiveIsSecret = QxGramScreenshotPolicy.shouldProtect(isSecret: isSecret, screenshotsAllowed: QxGramScreenshotPolicy.isAllowed(accountId: strongSelf.context.account.id))
+            #if DEBUG
+            strongSelf.historyNodeContainer.isSecret = false
+            #else
+            strongSelf.historyNodeContainer.isSecret = effectiveIsSecret
+            #endif
+            setLayerDisableScreenshots(strongSelf.titleAccessoryPanelContainer.layer, effectiveIsSecret)
+        }
         
         let recognizer = WindowPanRecognizer(target: nil, action: nil)
         recognizer.cancelsTouchesInView = false
@@ -1226,13 +1247,14 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         }
         
         let isSecret = self.chatPresentationInterfaceState.copyProtectionEnabled || self.chatLocation.peerId?.namespace == Namespaces.Peer.SecretChat || self.chatLocation.peerId?.isVerificationCodes == true
-        if self.historyNodeContainer.isSecret != isSecret {
+        let effectiveIsSecret = QxGramScreenshotPolicy.shouldProtect(isSecret: isSecret, screenshotsAllowed: QxGramScreenshotPolicy.isAllowed(accountId: self.context.account.id))
+        if self.historyNodeContainer.isSecret != effectiveIsSecret {
             #if DEBUG
             self.historyNodeContainer.isSecret = false
             #else
-            self.historyNodeContainer.isSecret = isSecret
+            self.historyNodeContainer.isSecret = effectiveIsSecret
             #endif
-            setLayerDisableScreenshots(self.titleAccessoryPanelContainer.layer, isSecret)
+            setLayerDisableScreenshots(self.titleAccessoryPanelContainer.layer, effectiveIsSecret)
         }
 
         var previousListBottomInset: CGFloat?
