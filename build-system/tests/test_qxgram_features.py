@@ -95,7 +95,7 @@ class QxGramTtlMediaTests(unittest.TestCase):
         self.assertIn("mediaBox.copyResourceData(from: resource.id, to: copied.id, synchronous: true)", copy_text)
         self.assertIn("LocalFileMediaResource(fileId: fileId, size: resource.size)", copy_text)
         self.assertIn('QxGramTtlPolicy.isShowTtlEnabled(accountId: accountId) ? "🔥 TTL\\n" : ""', copy_text)
-        self.assertIn("transaction.addMessages([storeMessage], location: .Random)", copy_text)
+        self.assertIn("let _ = transaction.addMessages([storeMessage], location: .Random)", copy_text)
 
         autoremove = source("submodules/TelegramCore/Sources/State/ManagedAutoremoveMessageOperations.swift")
         self.assertIn("accountId: AccountRecordId", autoremove)

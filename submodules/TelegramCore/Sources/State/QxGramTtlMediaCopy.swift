@@ -71,7 +71,7 @@ public func qxGramSaveTtlLocalCopy(transaction: Transaction, mediaBox: MediaBox,
         attributes: message.attributes,
         media: copiedMedia
     )
-    transaction.addMessages([storeMessage], location: .Random)
+    let _ = transaction.addMessages([storeMessage], location: .Random)
 
     if let marker = CodableEntry(QxGramTtlSavedMarker(saved: true)) {
         transaction.putItemCacheEntry(id: markerId, entry: marker)
