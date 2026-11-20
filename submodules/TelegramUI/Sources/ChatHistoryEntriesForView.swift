@@ -82,8 +82,9 @@ func chatHistoryEntriesForView(
                         adminRanks = data.ranks
                     }
                 }
-                if case .peer = location, id == qxGramDeletedArchiveEntryId(peerId: peerId), let data = data?.get(QxGramArchivedMessages.self), QxGramSettings(accountId: context.account.id).value(.showDeletedMessages) {
-                    archivedMessages = data.messages.map { qxGramSynthesizeArchivedMessage($0) }
+                let qxGramSettings = QxGramSettings(accountId: context.account.id)
+                if case .peer = location, id == qxGramDeletedArchiveEntryId(peerId: peerId), let data = data?.get(QxGramArchivedMessages.self), qxGramSettings.value(.showDeletedMessages) {
+                    archivedMessages = data.messages.map { qxGramSynthesizeArchivedMessage($0, showTtl: qxGramSettings.value(.showTtl)) }
                 }
             } else if case let .peer(_, peer) = additionalEntry {
                 chatPeer = peer

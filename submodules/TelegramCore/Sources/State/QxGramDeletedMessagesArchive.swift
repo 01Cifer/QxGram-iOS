@@ -62,10 +62,10 @@ public func qxGramDecodeMedia(_ data: [Data]) -> [Media] {
     }
 }
 
-public func qxGramDeletedMessageLabel(_ reason: QxGramDeletedReason) -> String {
+public func qxGramDeletedMessageLabel(_ reason: QxGramDeletedReason, showTtl: Bool = true) -> String {
     switch reason {
         case .ttl:
-            return "🔥 TTL"
+            return showTtl ? "🔥 TTL" : "🗑️ Удалено"
         case .deletedByOther, .deletedBySelf:
             return "🗑️ Удалено"
     }
@@ -106,9 +106,9 @@ public func qxGramArchiveMessages(transaction: Transaction, messages: [Message],
     }
 }
 
-public func qxGramSynthesizeArchivedMessage(_ item: QxGramArchivedMessage) -> Message {
+public func qxGramSynthesizeArchivedMessage(_ item: QxGramArchivedMessage, showTtl: Bool = true) -> Message {
     let reason = QxGramDeletedReason(rawValue: item.reason) ?? .deletedByOther
-    let label = qxGramDeletedMessageLabel(reason)
+    let label = qxGramDeletedMessageLabel(reason, showTtl: showTtl)
     let text = item.text.isEmpty ? label : "\(label)\n\(item.text)"
     return Message(
         stableId: UInt32(truncatingIfNeeded: item.stableId),

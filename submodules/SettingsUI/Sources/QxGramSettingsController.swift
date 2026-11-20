@@ -73,6 +73,7 @@ private enum QxGramSettingsEntry: ItemListNodeEntry {
     case ghost(Bool)
     case deleted(Bool)
     case ttl(Bool)
+    case showTtl(Bool)
     case screenshots(Bool)
     case pendingNotice
     case cache(String, Bool)
@@ -95,14 +96,16 @@ private enum QxGramSettingsEntry: ItemListNodeEntry {
             return 1
         case .ttl:
             return 2
-        case .screenshots:
+        case .showTtl:
             return 3
-        case .pendingNotice:
+        case .screenshots:
             return 4
-        case .cache:
+        case .pendingNotice:
             return 5
-        case .cacheNotice:
+        case .cache:
             return 6
+        case .cacheNotice:
+            return 7
         }
     }
 
@@ -128,6 +131,10 @@ private enum QxGramSettingsEntry: ItemListNodeEntry {
             title = "Сохранять TTL-медиа"
             setting = .saveTtlMedia
             value = current
+        case let .showTtl(current):
+            title = "Показывать TTL"
+            setting = .showTtl
+            value = current
         case let .screenshots(current):
             title = "Разрешить скриншот"
             setting = .allowScreenshots
@@ -152,6 +159,7 @@ private func qxGramSettingsEntries(_ settings: QxGramSettings) -> [QxGramSetting
         .ghost(settings.value(.ghost)),
         .deleted(settings.value(.showDeletedMessages)),
         .ttl(settings.value(.saveTtlMedia)),
+        .showTtl(settings.value(.showTtl)),
         .screenshots(settings.value(.allowScreenshots)),
         .pendingNotice
     ]

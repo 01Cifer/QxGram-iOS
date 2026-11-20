@@ -9,6 +9,7 @@ public enum QxGramSetting: String {
     case ghost
     case showDeletedMessages
     case saveTtlMedia
+    case showTtl
     case allowScreenshots
 }
 
