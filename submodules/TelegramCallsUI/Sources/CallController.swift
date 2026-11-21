@@ -6,7 +6,6 @@ import TelegramCore
 import SwiftSignalKit
 import TelegramPresentationData
 import TelegramUIPreferences
-import PresentationDataUtils
 import TelegramVoip
 import TelegramAudio
 import AccountContext
@@ -32,7 +31,6 @@ protocol CallControllerNodeProtocol: AnyObject {
     var dismissAllTooltips: (() -> Void)? { get set }
     
     func updateAudioOutputs(availableOutputs: [AudioSessionOutput], currentOutput: AudioSessionOutput?)
-    func updateCallRecording(isAvailable: Bool)
     func updateCallState(_ callState: PresentationCallState)
     func updatePeer(accountPeer: EnginePeer, peer: EnginePeer, hasOther: Bool)
     
@@ -41,11 +39,6 @@ protocol CallControllerNodeProtocol: AnyObject {
     func expandFromPipIfPossible()
     
     func containerLayoutUpdated(_ layout: ContainerViewLayout, navigationBarHeight: CGFloat, transition: ContainedViewLayoutTransition)
-}
-
-extension CallControllerNodeProtocol {
-    func updateCallRecording(isAvailable: Bool) {
-    }
 }
 
 public final class CallController: ViewController {
@@ -79,8 +72,6 @@ public final class CallController: ViewController {
     
     private var audioOutputStateDisposable: Disposable?
     private var audioOutputState: ([AudioSessionOutput], AudioSessionOutput?)?
-
-    private var callRecordingSettingsObserver: NSObjectProtocol?
     
     private let idleTimerExtensionDisposable = MetaDisposable()
     
@@ -147,13 +138,6 @@ public final class CallController: ViewController {
                 }
             }
         })
-
-        self.callRecordingSettingsObserver = NotificationCenter.default.addObserver(forName: .qxGramSettingsDidChange, object: nil, queue: .main, using: { [weak self] notification in
-            guard let self, let accountId = notification.userInfo?["accountId"] as? Int64, accountId == self.call.context.account.id.int64 else {
-                return
-            }
-            self.updateCallRecordingState()
-        })
     }
     
     required public init(coder aDecoder: NSCoder) {
@@ -161,10 +145,6 @@ public final class CallController: ViewController {
     }
     
     deinit {
-        if let callRecordingSettingsObserver = self.callRecordingSettingsObserver {
-            NotificationCenter.default.removeObserver(callRecordingSettingsObserver)
-        }
-        QxGramCallRecordingManager.shared.stop()
         self.peerDisposable?.dispose()
         self.disposable?.dispose()
         self.callMutedDisposable?.dispose()
@@ -175,7 +155,6 @@ public final class CallController: ViewController {
     private func callStateUpdated(_ callState: PresentationCallState) {
         if self.isNodeLoaded {
             self.controllerNode.updateCallState(callState)
-            self.updateCallRecordingState()
         }
     }
     
@@ -295,18 +274,6 @@ public final class CallController: ViewController {
             }
             self.conferenceAddParticipant()
         }
-
-        displayNode.toggleCallRecording = { [weak self] in
-            guard let self else {
-                return
-            }
-            self.toggleCallRecording()
-        }
-
-        QxGramCallRecordingManager.shared.onStateChanged = { [weak self] in
-            self?.updateCallRecordingState()
-        }
-        self.updateCallRecordingState()
         
         self.controllerNode.presentCallRating = { [weak self] callId, isVideo in
             if let strongSelf = self, !strongSelf.presentedCallRating {
@@ -503,7 +470,6 @@ public final class CallController: ViewController {
     
     private func superDismiss() {
         self.didPlayPresentationAnimation = false
-        QxGramCallRecordingManager.shared.stop()
         if self.navigationPresentation == .flatModal {
             super.dismiss()
         } else {
@@ -511,62 +477,6 @@ public final class CallController: ViewController {
         }
     }
     
-    private var callRecordingConsentKey: String {
-        return "qxgram.callRecording.consent.\(self.call.context.account.id.int64)"
-    }
-
-    private func updateCallRecordingState() {
-        guard self.isNodeLoaded else {
-            return
-        }
-        let enabled = QxGramSettings(accountId: self.call.context.account.id).value(.callRecording)
-        let manager = QxGramCallRecordingManager.shared
-        if !enabled && manager.isRecording {
-            manager.stop()
-        }
-        self.controllerNode.updateCallRecording(isAvailable: enabled)
-    }
-
-    private func toggleCallRecording() {
-        let manager = QxGramCallRecordingManager.shared
-        guard QxGramSettings(accountId: self.call.context.account.id).value(.callRecording) else {
-            return
-        }
-        if manager.isRecording || manager.isAvailable == false {
-            manager.stop()
-            return
-        }
-
-        if !UserDefaults.standard.bool(forKey: self.callRecordingConsentKey) {
-            let consentKey = self.callRecordingConsentKey
-            let alert = textAlertController(
-                context: self.call.context,
-                forceTheme: defaultDarkPresentationTheme,
-                title: "Запись звонков",
-                text: "Запись захватывает экран звонка и микрофон. Другой участник может не знать о записи. Включайте запись только с его согласия и соблюдайте законодательство.",
-                actions: [
-                    TextAlertAction(type: .genericAction, title: "Отмена", action: {}),
-                    TextAlertAction(type: .defaultAction, title: "Понимаю", action: { [weak self] in
-                        UserDefaults.standard.set(true, forKey: consentKey)
-                        self?.startCallRecording()
-                    })
-                ]
-            )
-            self.present(alert, in: .window(.calls))
-        } else {
-            self.startCallRecording()
-        }
-    }
-
-    private func startCallRecording() {
-        QxGramCallRecordingManager.shared.toggle { [weak self] started in
-            guard let self, started else {
-                return
-            }
-            self.updateCallRecordingState()
-        }
-    }
-
     private func conferenceAddParticipant() {
         var disablePeerIds: [EnginePeer.Id] = []
         disablePeerIds.append(self.call.context.account.peerId)

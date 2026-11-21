@@ -75,7 +75,6 @@ private enum QxGramSettingsEntry: ItemListNodeEntry {
     case ttl(Bool)
     case showTtl(Bool)
     case screenshots(Bool)
-    case callRecording(Bool)
     case pendingNotice
     case cache(String, Bool)
     case cacheNotice
@@ -101,14 +100,12 @@ private enum QxGramSettingsEntry: ItemListNodeEntry {
             return 3
         case .screenshots:
             return 4
-        case .callRecording:
-            return 5
         case .pendingNotice:
-            return 6
+            return 5
         case .cache:
-            return 7
+            return 6
         case .cacheNotice:
-            return 8
+            return 7
         }
     }
 
@@ -142,10 +139,6 @@ private enum QxGramSettingsEntry: ItemListNodeEntry {
             title = "Разрешить скриншот"
             setting = .allowScreenshots
             value = current
-        case let .callRecording(current):
-            title = "Запись звонков"
-            setting = .callRecording
-            value = current
         case .pendingNotice:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Все функции QxGram активны: архив удалённых, TTL-медиа, скриншоты, Ghost. Переключатели применяются сразу."), sectionId: self.section)
         case let .cache(label, isEnabled):
@@ -168,7 +161,6 @@ private func qxGramSettingsEntries(_ settings: QxGramSettings) -> [QxGramSetting
         .ttl(settings.value(.saveTtlMedia)),
         .showTtl(settings.value(.showTtl)),
         .screenshots(settings.value(.allowScreenshots)),
-        .callRecording(settings.value(.callRecording)),
         .pendingNotice
     ]
 }

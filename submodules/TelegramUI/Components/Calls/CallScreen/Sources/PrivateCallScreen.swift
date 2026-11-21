@@ -83,9 +83,6 @@ public final class PrivateCallScreen: OverlayMaskContainerView, AVPictureInPictu
         public var isEnergySavingEnabled: Bool
         public var isConferencePossible: Bool
         public var enableVideoSharpening: Bool
-        public var isCallRecordingAvailable: Bool
-        public var isCallRecording: Bool
-        public var callRecordingStartedAt: Double?
         
         public init(
             strings: PresentationStrings,
@@ -102,10 +99,7 @@ public final class PrivateCallScreen: OverlayMaskContainerView, AVPictureInPictu
             isRemoteBatteryLow: Bool,
             isEnergySavingEnabled: Bool,
             isConferencePossible: Bool,
-            enableVideoSharpening: Bool,
-            isCallRecordingAvailable: Bool = false,
-            isCallRecording: Bool = false,
-            callRecordingStartedAt: Double? = nil
+            enableVideoSharpening: Bool
         ) {
             self.strings = strings
             self.lifecycleState = lifecycleState
@@ -122,9 +116,6 @@ public final class PrivateCallScreen: OverlayMaskContainerView, AVPictureInPictu
             self.isEnergySavingEnabled = isEnergySavingEnabled
             self.isConferencePossible = isConferencePossible
             self.enableVideoSharpening = enableVideoSharpening
-            self.isCallRecordingAvailable = isCallRecordingAvailable
-            self.isCallRecording = isCallRecording
-            self.callRecordingStartedAt = callRecordingStartedAt
         }
         
         public static func ==(lhs: State, rhs: State) -> Bool {
@@ -173,15 +164,6 @@ public final class PrivateCallScreen: OverlayMaskContainerView, AVPictureInPictu
             if lhs.enableVideoSharpening != rhs.enableVideoSharpening {
                 return false
             }
-            if lhs.isCallRecordingAvailable != rhs.isCallRecordingAvailable {
-                return false
-            }
-            if lhs.isCallRecording != rhs.isCallRecording {
-                return false
-            }
-            if lhs.callRecordingStartedAt != rhs.callRecordingStartedAt {
-                return false
-            }
             return true
         }
     }
@@ -217,7 +199,6 @@ public final class PrivateCallScreen: OverlayMaskContainerView, AVPictureInPictu
     private let titleView: TextView
     private let backButtonView: BackButtonView
     private var conferenceButtonView: ConferenceButtonView?
-    private var callRecordingButtonView: QxGramCallRecordingButtonView?
     
     private var statusView: StatusView
     private var weakSignalView: WeakSignalView?
@@ -270,7 +251,6 @@ public final class PrivateCallScreen: OverlayMaskContainerView, AVPictureInPictu
     public var closeAction: (() -> Void)?
     public var restoreUIForPictureInPicture: ((@escaping (Bool) -> Void) -> Void)?
     public var conferenceAddParticipant: (() -> Void)?
-    public var callRecordingAction: (() -> Void)?
     
     private let pipView: PrivateCallPictureInPictureView
     private var pipContentSource: AnyObject?
@@ -962,9 +942,6 @@ public final class PrivateCallScreen: OverlayMaskContainerView, AVPictureInPictu
         transition.setFrame(view: self.backButtonView, frame: backButtonFrame)
         genericAlphaTransition.setAlpha(view: self.backButtonView, alpha: (currentAreControlsHidden || self.isAnimatedOutToGroupCall) ? 0.0 : 1.0)
         
-        let isCallRecordingVisible = params.state.isCallRecordingAvailable
-        let callRecordingButtonSize = CGSize(width: 84.0, height: 40.0)
-
         var isConferencePossible = false
         if case .active = params.state.lifecycleState, params.state.isConferencePossible {
             isConferencePossible = true
@@ -999,8 +976,7 @@ public final class PrivateCallScreen: OverlayMaskContainerView, AVPictureInPictu
             } else {
                 conferenceButtonY = params.insets.top + 3.0
             }
-            let conferenceRightOffset = conferenceButtonSize.width + (isCallRecordingVisible ? callRecordingButtonSize.width + 6.0 : 0.0)
-            let conferenceButtonFrame = CGRect(origin: CGPoint(x: params.size.width - params.insets.right - 10.0 - conferenceRightOffset, y: conferenceButtonY), size: conferenceButtonSize)
+            let conferenceButtonFrame = CGRect(origin: CGPoint(x: params.size.width - params.insets.right - 10.0 - conferenceButtonSize.width, y: conferenceButtonY), size: conferenceButtonSize)
             
             conferenceButtonTransition.setFrame(view: conferenceButtonView, frame: conferenceButtonFrame)
             genericAlphaTransition.setAlpha(view: conferenceButtonView, alpha: (currentAreControlsHidden || self.isAnimatedOutToGroupCall) ? 0.0 : 1.0)
@@ -1008,45 +984,6 @@ public final class PrivateCallScreen: OverlayMaskContainerView, AVPictureInPictu
             if let conferenceButtonView = self.conferenceButtonView {
                 self.conferenceButtonView = nil
                 conferenceButtonView.removeFromSuperview()
-            }
-        }
-
-        if isCallRecordingVisible {
-            let callRecordingButtonView: QxGramCallRecordingButtonView
-            var callRecordingButtonTransition = transition
-            if let current = self.callRecordingButtonView {
-                callRecordingButtonView = current
-            } else {
-                callRecordingButtonTransition = callRecordingButtonTransition.withAnimation(.none)
-                callRecordingButtonView = QxGramCallRecordingButtonView()
-                callRecordingButtonView.alpha = 0.0
-                self.callRecordingButtonView = callRecordingButtonView
-                self.addSubview(callRecordingButtonView)
-
-                callRecordingButtonView.pressAction = { [weak self] in
-                    guard let self else {
-                        return
-                    }
-                    self.callRecordingAction?()
-                }
-            }
-
-            callRecordingButtonView.update(size: callRecordingButtonSize, isRecording: params.state.isCallRecording, startedAt: params.state.callRecordingStartedAt)
-
-            let callRecordingButtonY: CGFloat
-            if currentAreControlsHidden {
-                callRecordingButtonY = -callRecordingButtonSize.height - 3.0
-            } else {
-                callRecordingButtonY = params.insets.top + 3.0
-            }
-            let callRecordingButtonFrame = CGRect(origin: CGPoint(x: params.size.width - params.insets.right - 10.0 - callRecordingButtonSize.width, y: callRecordingButtonY), size: callRecordingButtonSize)
-
-            callRecordingButtonTransition.setFrame(view: callRecordingButtonView, frame: callRecordingButtonFrame)
-            genericAlphaTransition.setAlpha(view: callRecordingButtonView, alpha: (currentAreControlsHidden || self.isAnimatedOutToGroupCall) ? 0.0 : 1.0)
-        } else {
-            if let callRecordingButtonView = self.callRecordingButtonView {
-                self.callRecordingButtonView = nil
-                callRecordingButtonView.removeFromSuperview()
             }
         }
         
