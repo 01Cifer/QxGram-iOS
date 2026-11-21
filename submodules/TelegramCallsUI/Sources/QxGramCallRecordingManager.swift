@@ -60,7 +60,8 @@ public final class QxGramCallRecordingManager {
         }
 
         self.isStarting = true
-        recorder.startRecording(withMicrophoneEnabled: true) { [weak self] error in
+        recorder.isMicrophoneEnabled = true
+        recorder.startRecording { [weak self] error in
             DispatchQueue.main.async {
                 guard let self else {
                     completion(false)
