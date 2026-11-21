@@ -336,7 +336,7 @@ class QxGramCallRecordingTests(unittest.TestCase):
     def test_button_has_red_dot_and_timer(self):
         button = source("submodules/TelegramUI/Components/Calls/CallScreen/Sources/Components/QxGramCallRecordingButtonView.swift")
         self.assertIn("class QxGramCallRecordingButtonView: HighlightTrackingButton", button)
-        self.assertIn("self.titleLabel.text = \"Запись\"", button)
+        self.assertIn("self.textLabel.text = \"Запись\"", button)
         self.assertIn("String(format: \"%02d:%02d\"", button)
         self.assertIn("dotView.backgroundColor = UIColor(red: 1.0, green: 0.27, blue: 0.27, alpha: 1.0)", button)
         self.assertIn("Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true", button)

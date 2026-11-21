@@ -6,7 +6,7 @@ final class QxGramCallRecordingButtonView: HighlightTrackingButton {
     var pressAction: (() -> Void)?
 
     private let dotView = UIView()
-    private let titleLabel = UILabel()
+    private let textLabel = UILabel()
     private var timer: Foundation.Timer?
     private var currentSize: CGSize = CGSize(width: 84.0, height: 40.0)
     private var isRecording: Bool = false
@@ -17,10 +17,10 @@ final class QxGramCallRecordingButtonView: HighlightTrackingButton {
 
         self.backgroundColor = UIColor(white: 0.0, alpha: 0.4)
 
-        self.titleLabel.textColor = .white
-        self.titleLabel.textAlignment = .center
-        self.titleLabel.lineBreakMode = .byClipping
-        self.addSubview(self.titleLabel)
+        self.textLabel.textColor = .white
+        self.textLabel.textAlignment = .center
+        self.textLabel.lineBreakMode = .byClipping
+        self.addSubview(self.textLabel)
 
         self.dotView.backgroundColor = UIColor(red: 1.0, green: 0.27, blue: 0.27, alpha: 1.0)
         self.dotView.isHidden = true
@@ -76,16 +76,16 @@ final class QxGramCallRecordingButtonView: HighlightTrackingButton {
         let size = self.currentSize
         let dotSize: CGFloat = 8.0
         let font = UIFont.systemFont(ofSize: 13.0, weight: .semibold)
-        self.titleLabel.font = font
+        self.textLabel.font = font
 
         if self.isRecording {
             let elapsed = max(0, Int(floor(Date().timeIntervalSince1970 - (self.startedAt ?? Date().timeIntervalSince1970))))
-            self.titleLabel.text = String(format: "%02d:%02d", elapsed / 60, elapsed % 60)
+            self.textLabel.text = String(format: "%02d:%02d", elapsed / 60, elapsed % 60)
             self.dotView.frame = CGRect(origin: CGPoint(x: 9.0, y: floor((size.height - dotSize) * 0.5)), size: CGSize(width: dotSize, height: dotSize))
-            self.titleLabel.frame = CGRect(origin: CGPoint(x: 17.0, y: 0.0), size: CGSize(width: size.width - 25.0, height: size.height))
+            self.textLabel.frame = CGRect(origin: CGPoint(x: 17.0, y: 0.0), size: CGSize(width: size.width - 25.0, height: size.height))
         } else {
-            self.titleLabel.text = "Запись"
-            self.titleLabel.frame = CGRect(origin: CGPoint(x: 8.0, y: 0.0), size: CGSize(width: size.width - 16.0, height: size.height))
+            self.textLabel.text = "Запись"
+            self.textLabel.frame = CGRect(origin: CGPoint(x: 8.0, y: 0.0), size: CGSize(width: size.width - 16.0, height: size.height))
         }
     }
 }
