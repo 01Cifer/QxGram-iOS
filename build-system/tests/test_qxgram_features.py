@@ -54,7 +54,8 @@ class QxGramDeletedMessagesTests(unittest.TestCase):
         self.assertIn("id == qxGramDeletedArchiveEntryId(peerId: peerId)", entries_text)
         self.assertIn("let qxGramSettings = QxGramSettings(accountId: context.account.id)", entries_text)
         self.assertIn("qxGramSettings.value(.showDeletedMessages)", entries_text)
-        self.assertIn("archivedMessages = data.messages.map { qxGramSynthesizeArchivedMessage($0, showTtl: qxGramSettings.value(.showTtl)) }", entries_text)
+        self.assertIn("archivedMessages = data.messages.compactMap { item in", entries_text)
+        self.assertIn("guard qxGramArchivedMessageIsValid(item) else", entries_text)
         self.assertIn("if !archivedMessages.isEmpty", entries_text)
         self.assertIn("entries.append(.MessageEntry(message, presentationData", entries_text)
 
@@ -116,7 +117,7 @@ class QxGramTtlMediaTests(unittest.TestCase):
         text = source("submodules/TelegramCore/Sources/State/QxGramDeletedMessagesArchive.swift")
         self.assertIn("public func qxGramDeletedMessageLabel(_ reason: QxGramDeletedReason, showTtl: Bool = true)", text)
         self.assertIn('return showTtl ? "🔥 TTL" : "🗑️ Удалено"', text)
-        self.assertIn("qxGramSynthesizeArchivedMessage($0, showTtl: qxGramSettings.value(.showTtl))", source("submodules/TelegramUI/Sources/ChatHistoryEntriesForView.swift"))
+        self.assertIn("qxGramArchivedMessageIsValid(item)", source("submodules/TelegramUI/Sources/ChatHistoryEntriesForView.swift"))
         self.assertIn("attributes: [QxGramStatusBadgeMessageAttribute(label: label)]", text)
         self.assertNotIn("let text = item.text.isEmpty ? label", text)
 
@@ -133,8 +134,9 @@ class QxGramStatusBadgeTests(unittest.TestCase):
 
     def test_badge_is_one_line_in_date_status_string(self):
         status = source("submodules/TelegramUI/Components/Chat/ChatMessageDateAndStatusNode/Sources/StringForMessageTimestampStatus.swift")
-        self.assertIn("if let badge = attribute as? QxGramStatusBadgeMessageAttribute, !badge.label.isEmpty", status)
-        self.assertIn('dateText = "\\(dateText) \\(badge.label)"', status)
+        self.assertIn("if let badge = attribute as? QxGramStatusBadgeMessageAttribute", status)
+        self.assertIn("let label = badge.label.trimmingCharacters(in: .whitespacesAndNewlines)", status)
+        self.assertIn('dateText = "\\(dateText) \\(String(label.prefix(64)))"', status)
         self.assertIn("break", status)
 
         copy_text = source("submodules/TelegramCore/Sources/State/QxGramTtlMediaCopy.swift")
@@ -309,6 +311,64 @@ class QxGramTtlLoopSafetyTests(unittest.TestCase):
         migration_index = account.index("qxGramRunTtlLoopMigration(accountId: migrationAccountId")
         autoremove_index = account.index("managedAutoremoveMessageOperations(network: self.network, postbox: self.postbox, accountId: self.id, isRemove: true)")
         self.assertLess(migration_index, autoremove_index)
+
+
+class QxGramTtlCrashLoopTests(unittest.TestCase):
+    def test_expired_media_decoder_cannot_trap(self):
+        text = source("submodules/TelegramCore/Sources/SyncCore/SyncCore_TelegramMediaExpiredContent.swift")
+        self.assertNotIn("TelegramMediaExpiredContentData(rawValue: decoder.decodeInt32ForKey(\"d\", orElse: 0))!", text)
+        self.assertIn("let raw = decoder.decodeInt32ForKey(\"d\", orElse: TelegramMediaExpiredContentData.image.rawValue)", text)
+        self.assertIn("TelegramMediaExpiredContentData(rawValue: raw) ?? .image", text)
+
+    def test_archive_decode_logs_and_drops_bad_blob(self):
+        text = source("submodules/TelegramCore/Sources/State/QxGramDeletedMessagesArchive.swift")
+        self.assertIn("public func qxGramDecodeMediaChecking(_ data: [Data]) -> (media: [Media], invalid: Int)", text)
+        self.assertIn('Logger.shared.log("QxGram archive", "dropping undecodable media blob")', text)
+        self.assertIn("public func qxGramArchivedMessageIsValid(_ item: QxGramArchivedMessage) -> Bool", text)
+        self.assertIn("guard QxGramDeletedReason(rawValue: item.reason) != nil else", text)
+        self.assertIn("qxGramDecodeMediaChecking(item.mediaData).invalid == 0", text)
+        self.assertIn("guard !messages.isEmpty, !QxGramTtlPolicy.isEmergencyDisabled() else", text)
+
+    def test_startup_repair_migration_cleans_archive(self):
+        migration = source("submodules/TelegramCore/Sources/State/QxGramTtlRepairMigration.swift")
+        self.assertIn("public func qxGramRunTtlRepairMigration(accountId: AccountRecordId, transaction: Transaction)", migration)
+        self.assertIn("let forced = QxGramLaunchSafety.isEmergencyMode()", migration)
+        self.assertIn("transaction.retrieveItemCacheEntry(id: entryId)", migration)
+        self.assertIn("seenIds.insert(idKey).inserted", migration)
+        self.assertIn("seenFingerprints.insert(fingerprint).inserted", migration)
+        self.assertIn("transaction.putItemCacheEntry(id: entryId, entry: entry)", migration)
+        account = source("submodules/TelegramCore/Sources/Account/Account.swift")
+        self.assertIn("qxGramRunTtlRepairMigration(accountId: migrationAccountId, transaction: transaction)", account)
+
+    def test_local_copy_has_no_stale_cloud_reference_and_open_guard(self):
+        copy_text = source("submodules/TelegramCore/Sources/State/QxGramTtlMediaCopy.swift")
+        self.assertIn("public func qxGramMessageIsTtl(_ message: Message) -> Bool", copy_text)
+        self.assertIn("public func qxGramMessageHasLocalMediaCopy(_ message: Message) -> Bool", copy_text)
+        self.assertIn("public func qxGramTtlMediaIsUnavailable(_ message: Message) -> Bool", copy_text)
+        self.assertIn("representation.resource is LocalFileMediaResource", copy_text)
+        self.assertIn("file.resource is LocalFileMediaResource", copy_text)
+        self.assertIn("reference: nil,", copy_text)
+        self.assertIn("partialReference: nil,", copy_text)
+        opened = source("submodules/TelegramUI/Sources/OpenChatMessage.swift")
+        self.assertIn("if qxGramMessageIsTtl(params.message) && qxGramTtlMediaIsUnavailable(params.message) && !qxGramMessageHasLocalMediaCopy(params.message)", opened)
+        self.assertIn("Медиа уже недоступно: локальная копия не была сохранена.", opened)
+
+    def test_launch_safety_emergency_brake(self):
+        safety = source("submodules/TelegramCore/Sources/State/QxGramLaunchSafety.swift")
+        self.assertIn('private static let emergencyKey = "qxgram.emergency.ttlDisabled"', safety)
+        self.assertIn('private static let noticeKey = "qxgram.emergency.ttlNoticePending"', safety)
+        self.assertIn("public static func recordLaunchAttempt()", safety)
+        self.assertIn("if failures >= 2", safety)
+        self.assertIn("public static func markLaunchStable()", safety)
+        self.assertIn("public static func consumePendingNotice() -> Bool", safety)
+        app = source("submodules/TelegramUI/Sources/AppDelegate.swift")
+        self.assertIn("QxGramLaunchSafety.recordLaunchAttempt()", app)
+        self.assertIn("QxGramLaunchSafety.markLaunchStable()", app)
+        self.assertIn("QxGramLaunchSafety.consumePendingNotice()", app)
+        policy = source("submodules/TelegramCore/Sources/State/QxGramTtlPolicy.swift")
+        self.assertIn("return Self.isEmergencyDisabled() || UserDefaults.standard.bool(forKey: Self.fuseKey(accountId: accountId))", policy)
+        entries = source("submodules/TelegramUI/Sources/ChatHistoryEntriesForView.swift")
+        self.assertIn("!QxGramTtlPolicy.isEmergencyDisabled()", entries)
 
 
 if __name__ == "__main__":

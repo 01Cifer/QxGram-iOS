@@ -83,8 +83,14 @@ func chatHistoryEntriesForView(
                     }
                 }
                 let qxGramSettings = QxGramSettings(accountId: context.account.id)
-                if case .peer = location, id == qxGramDeletedArchiveEntryId(peerId: peerId), let data = data?.get(QxGramArchivedMessages.self), qxGramSettings.value(.showDeletedMessages) {
-                    archivedMessages = data.messages.map { qxGramSynthesizeArchivedMessage($0, showTtl: qxGramSettings.value(.showTtl)) }
+                if case .peer = location, id == qxGramDeletedArchiveEntryId(peerId: peerId), let data = data?.get(QxGramArchivedMessages.self), !QxGramTtlPolicy.isEmergencyDisabled(), qxGramSettings.value(.showDeletedMessages) {
+                    archivedMessages = data.messages.compactMap { item in
+                        guard qxGramArchivedMessageIsValid(item) else {
+                            Logger.shared.log("QxGram archive", "skipping invalid archived message \(item.id.namespace):\(item.id.id) in chat")
+                            return nil
+                        }
+                        return qxGramSynthesizeArchivedMessage(item, showTtl: qxGramSettings.value(.showTtl))
+                    }
                 }
             } else if case let .peer(_, peer) = additionalEntry {
                 chatPeer = peer

@@ -1461,6 +1461,7 @@ public class Account {
         let migrationAccountId = self.id
         self.managedOperationsDisposable.add(postbox.transaction { transaction in
             qxGramRunTtlLoopMigration(accountId: migrationAccountId, transaction: transaction)
+            qxGramRunTtlRepairMigration(accountId: migrationAccountId, transaction: transaction)
         }.start())
         self.managedOperationsDisposable.add(managedAutoremoveMessageOperations(network: self.network, postbox: self.postbox, accountId: self.id, isRemove: true).start())
         self.managedOperationsDisposable.add(managedAutoremoveMessageOperations(network: self.network, postbox: self.postbox, accountId: self.id, isRemove: false).start())

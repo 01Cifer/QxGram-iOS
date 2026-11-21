@@ -56,10 +56,32 @@ public func qxGramDecodePeer(_ data: Data?) -> Peer? {
     return PostboxDecoder(buffer: MemoryBuffer(data: data)).decodeRootObject() as? Peer
 }
 
-public func qxGramDecodeMedia(_ data: [Data]) -> [Media] {
-    return data.compactMap { data in
-        return PostboxDecoder(buffer: MemoryBuffer(data: data)).decodeRootObject() as? Media
+public func qxGramDecodeMediaChecking(_ data: [Data]) -> (media: [Media], invalid: Int) {
+    var media: [Media] = []
+    var invalid = 0
+    for blob in data {
+        if let decoded = PostboxDecoder(buffer: MemoryBuffer(data: blob)).decodeRootObject() as? Media {
+            media.append(decoded)
+        } else {
+            invalid += 1
+            Logger.shared.log("QxGram archive", "dropping undecodable media blob")
+        }
     }
+    return (media, invalid)
+}
+
+public func qxGramDecodeMedia(_ data: [Data]) -> [Media] {
+    return qxGramDecodeMediaChecking(data).media
+}
+
+public func qxGramArchivedMessageIsValid(_ item: QxGramArchivedMessage) -> Bool {
+    guard QxGramDeletedReason(rawValue: item.reason) != nil else {
+        return false
+    }
+    if let authorData = item.authorData, qxGramDecodePeer(authorData) == nil {
+        return false
+    }
+    return qxGramDecodeMediaChecking(item.mediaData).invalid == 0
 }
 
 public func qxGramDeletedMessageLabel(_ reason: QxGramDeletedReason, showTtl: Bool = true) -> String {
@@ -72,7 +94,7 @@ public func qxGramDeletedMessageLabel(_ reason: QxGramDeletedReason, showTtl: Bo
 }
 
 public func qxGramArchiveMessages(transaction: Transaction, messages: [Message], reason: QxGramDeletedReason) {
-    guard !messages.isEmpty else {
+    guard !messages.isEmpty, !QxGramTtlPolicy.isEmergencyDisabled() else {
         return
     }
 

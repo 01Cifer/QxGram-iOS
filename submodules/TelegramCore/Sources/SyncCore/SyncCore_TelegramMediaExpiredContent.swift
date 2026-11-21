@@ -19,7 +19,8 @@ public final class TelegramMediaExpiredContent: Media, Equatable {
     }
     
     public init(decoder: PostboxDecoder) {
-        self.data = TelegramMediaExpiredContentData(rawValue: decoder.decodeInt32ForKey("d", orElse: 0))!
+        let raw = decoder.decodeInt32ForKey("d", orElse: TelegramMediaExpiredContentData.image.rawValue)
+        self.data = TelegramMediaExpiredContentData(rawValue: raw) ?? .image
     }
     
     public func encode(_ encoder: PostboxEncoder) {

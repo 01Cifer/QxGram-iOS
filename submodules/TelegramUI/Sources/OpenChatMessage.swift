@@ -131,6 +131,21 @@ func openChatMessageImpl(_ params: OpenChatMessageParams) -> Bool {
         return true
     }
     
+    if qxGramMessageIsTtl(params.message) && qxGramTtlMediaIsUnavailable(params.message) && !qxGramMessageHasLocalMediaCopy(params.message) {
+        let alert = UIAlertController(
+            title: "TTL",
+            message: "Медиа уже недоступно: локальная копия не была сохранена.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+        if let navigationController = params.navigationController {
+            navigationController.present(alert, animated: true)
+        } else {
+            params.context.sharedContext.mainWindow?.presentNative(alert)
+        }
+        return true
+    }
+
     if let mediaData = chatMessageGalleryControllerData(context: params.context, chatLocation: params.chatLocation, chatFilterTag: params.chatFilterTag, chatLocationContextHolder: params.chatLocationContextHolder, message: params.message, mediaSubject: params.mediaSubject, navigationController: params.navigationController, standalone: params.standalone, reverseMessageGalleryOrder: params.reverseMessageGalleryOrder, mode: params.mode, source: params.gallerySource, synchronousLoad: false, actionInteraction: params.actionInteraction) {
         switch mediaData {
             case let .url(url):

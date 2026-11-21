@@ -29,7 +29,9 @@ public func qxGramRunTtlLoopMigration(accountId: AccountRecordId, transaction: T
             to: MessageIndex.lowerBound(peerId: peerId, namespace: Namespaces.Message.Local),
             limit: 2000
         )
-        for message in localMessages where message.text.hasPrefix(qxGramTtlTextLabelPrefix) {
+        for message in localMessages where message.text.hasPrefix(qxGramTtlTextLabelPrefix) || message.attributes.contains(where: {
+            ($0 as? QxGramStatusBadgeMessageAttribute)?.label == qxGramDeletedMessageLabel(.ttl)
+        }) {
             spamIds.append(message.id)
         }
 

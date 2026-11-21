@@ -352,6 +352,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         precondition(!testIsLaunched)
         testIsLaunched = true
+        QxGramLaunchSafety.recordLaunchAttempt()
         
         let _ = voipTokenPromise.get().start(next: { token in
             self.voipDeviceToken.set(.single(token))
@@ -426,6 +427,20 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         let statusBarHost = ApplicationStatusBarHost(scene: window.windowScene)
         self.statusBarHost = statusBarHost
         self.mainWindow = Window1(hostView: hostView, statusBarHost: statusBarHost)
+
+        Queue.mainQueue().after(20.0) {
+            QxGramLaunchSafety.markLaunchStable()
+        }
+        if QxGramLaunchSafety.consumePendingNotice() {
+            let alert = UIAlertController(
+                title: "QxGram",
+                message: "После двух быстрых завершений приложения TTL и архив удалённых сообщений отключены. Переписки будут открываться без архива.",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+            self.mainWindow?.presentNative(alert)
+        }
+
         if let traitCollection = window.rootViewController?.traitCollection {
             if #available(iOS 13.0, *) {
                 switch traitCollection.userInterfaceStyle {

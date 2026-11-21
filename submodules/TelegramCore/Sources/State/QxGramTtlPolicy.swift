@@ -12,8 +12,12 @@ public enum QxGramTtlPolicy {
         return Self.key(accountId: accountId, setting: Self.fuseKeySuffix)
     }
 
+    public static func isEmergencyDisabled() -> Bool {
+        return QxGramLaunchSafety.isEmergencyMode()
+    }
+
     public static func isTtlDisabled(accountId: AccountRecordId) -> Bool {
-        return UserDefaults.standard.bool(forKey: Self.fuseKey(accountId: accountId))
+        return Self.isEmergencyDisabled() || UserDefaults.standard.bool(forKey: Self.fuseKey(accountId: accountId))
     }
 
     public static func disableTtl(accountId: AccountRecordId) {

@@ -252,9 +252,12 @@ public func stringForMessageTimestampStatus(
     }
     
     for attribute in message.attributes {
-        if let badge = attribute as? QxGramStatusBadgeMessageAttribute, !badge.label.isEmpty {
-            dateText = "\(dateText) \(badge.label)"
-            break
+        if let badge = attribute as? QxGramStatusBadgeMessageAttribute {
+            let label = badge.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !label.isEmpty {
+                dateText = "\(dateText) \(String(label.prefix(64)))"
+                break
+            }
         }
     }
 

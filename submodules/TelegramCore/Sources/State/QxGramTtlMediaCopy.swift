@@ -151,8 +151,8 @@ public func qxGramCopyTtlMedia(_ media: [Media], mediaBox: MediaBox) -> [Media] 
                 videoRepresentations: [],
                 immediateThumbnailData: image.immediateThumbnailData,
                 emojiMarkup: image.emojiMarkup,
-                reference: image.reference,
-                partialReference: image.partialReference,
+                reference: nil,
+                partialReference: nil,
                 flags: image.flags,
                 video: nil
             )
@@ -163,7 +163,7 @@ public func qxGramCopyTtlMedia(_ media: [Media], mediaBox: MediaBox) -> [Media] 
             let previews = file.previewRepresentations.compactMap { qxGramCopiedRepresentation($0, mediaBox: mediaBox) }
             return TelegramMediaFile(
                 fileId: file.fileId,
-                partialReference: file.partialReference,
+                partialReference: nil,
                 resource: resource,
                 previewRepresentations: previews,
                 videoThumbnails: file.videoThumbnails,
@@ -178,4 +178,38 @@ public func qxGramCopyTtlMedia(_ media: [Media], mediaBox: MediaBox) -> [Media] 
             return nil
         }
     }
+}
+
+public func qxGramMessageIsTtl(_ message: Message) -> Bool {
+    return message.attributes.contains { attribute in
+        return attribute is AutoclearTimeoutMessageAttribute || attribute is AutoremoveTimeoutMessageAttribute
+    }
+}
+
+public func qxGramMessageHasLocalMediaCopy(_ message: Message) -> Bool {
+    for media in message.media {
+        if let image = media as? TelegramMediaImage {
+            for representation in image.representations where representation.resource is LocalFileMediaResource {
+                return true
+            }
+        } else if let file = media as? TelegramMediaFile, file.resource is LocalFileMediaResource {
+            return true
+        }
+    }
+    return false
+}
+
+public func qxGramTtlMediaIsUnavailable(_ message: Message) -> Bool {
+    for media in message.media {
+        if media is TelegramMediaExpiredContent {
+            continue
+        }
+        if let image = media as? TelegramMediaImage, !image.representations.isEmpty {
+            return false
+        }
+        if media is TelegramMediaFile {
+            return false
+        }
+    }
+    return true
 }
