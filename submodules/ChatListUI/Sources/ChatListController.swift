@@ -2901,10 +2901,10 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
     func updateHeaderContent() -> (primaryContent: ChatListHeaderComponent.Content?, secondaryContent: ChatListHeaderComponent.Content?) {
         var primaryContent: ChatListHeaderComponent.Content?
         if let primaryContext = self.primaryContext {
-            var additionalLeftButtons: [AnyComponentWithIdentity<NavigationButtonComponentEnvironment>] = []
+            var rightButtons = primaryContext.rightButtons
             if !self.previewing, case .chatList(.root) = self.location {
                 let settings = QxGramSettings(accountId: self.context.account.id)
-                additionalLeftButtons.append(AnyComponentWithIdentity(id: "qxgram-ghost", component: AnyComponent(NavigationButtonComponent(
+                rightButtons.append(AnyComponentWithIdentity(id: "qxgram-ghost", component: AnyComponent(NavigationButtonComponent(
                     content: .emoji(title: "👻", isActive: settings.value(.ghost)),
                     pressed: { _ in
                         settings.set(.ghost, value: !settings.value(.ghost))
@@ -2925,8 +2925,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                 titleComponent: primaryContext.chatTitleComponent.flatMap { AnyComponent<Empty>($0) },
                 chatListTitle: primaryContext.chatListTitle,
                 leftButton: primaryContext.leftButton,
-                additionalLeftButtons: additionalLeftButtons,
-                rightButtons: primaryContext.rightButtons,
+                rightButtons: rightButtons,
                 backPressed: displayBackButton ? { [weak self] in
                     guard let self else {
                         return

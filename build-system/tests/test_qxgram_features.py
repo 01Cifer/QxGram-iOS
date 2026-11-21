@@ -236,6 +236,15 @@ class QxGramGhostTests(unittest.TestCase):
         self.assertIn("Все функции QxGram активны", text)
         self.assertNotIn("Ghost ещё не реализован", text)
 
+    def test_ghost_button_is_in_chat_list_header_button_row(self):
+        text = source("submodules/ChatListUI/Sources/ChatListController.swift")
+        self.assertIn("var rightButtons = primaryContext.rightButtons", text)
+        self.assertIn('id: "qxgram-ghost"', text)
+        self.assertIn('.emoji(title: "👻", isActive: settings.value(.ghost))', text)
+        self.assertIn("settings.set(.ghost, value: !settings.value(.ghost))", text)
+        self.assertIn("rightButtons: rightButtons", text)
+        self.assertNotIn("additionalLeftButtons: additionalLeftButtons", text)
+
 
 class QxGramTtlLoopSafetyTests(unittest.TestCase):
     def test_copy_is_idempotent_and_does_not_reschedule_itself(self):
