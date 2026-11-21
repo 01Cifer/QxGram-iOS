@@ -108,6 +108,9 @@ public func qxGramSaveTtlLocalCopy(transaction: Transaction, mediaBox: MediaBox,
         }
         attributes.append(attribute)
     }
+    if QxGramTtlPolicy.isShowTtlEnabled(accountId: accountId) {
+        attributes.append(QxGramStatusBadgeMessageAttribute(label: qxGramDeletedMessageLabel(.ttl)))
+    }
 
     let storeMessage = StoreMessage(
         peerId: message.id.peerId,

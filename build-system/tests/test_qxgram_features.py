@@ -117,6 +117,28 @@ class QxGramTtlMediaTests(unittest.TestCase):
         self.assertIn("public func qxGramDeletedMessageLabel(_ reason: QxGramDeletedReason, showTtl: Bool = true)", text)
         self.assertIn('return showTtl ? "🔥 TTL" : "🗑️ Удалено"', text)
         self.assertIn("qxGramSynthesizeArchivedMessage($0, showTtl: qxGramSettings.value(.showTtl))", source("submodules/TelegramUI/Sources/ChatHistoryEntriesForView.swift"))
+        self.assertIn("attributes: [QxGramStatusBadgeMessageAttribute(label: label)]", text)
+        self.assertNotIn("let text = item.text.isEmpty ? label", text)
+
+
+class QxGramStatusBadgeTests(unittest.TestCase):
+    def test_badge_attribute_is_codec_and_registered(self):
+        attribute = source("submodules/TelegramCore/Sources/State/QxGramStatusBadgeMessageAttribute.swift")
+        self.assertIn("public class QxGramStatusBadgeMessageAttribute: MessageAttribute", attribute)
+        self.assertIn('decoder.decodeStringForKey("l", orElse: "")', attribute)
+        self.assertIn('encoder.encodeString(self.label, forKey: "l")', attribute)
+
+        manager = source("submodules/TelegramCore/Sources/Account/AccountManager.swift")
+        self.assertIn("declareEncodable(QxGramStatusBadgeMessageAttribute.self", manager)
+
+    def test_badge_is_one_line_in_date_status_string(self):
+        status = source("submodules/TelegramUI/Components/Chat/ChatMessageDateAndStatusNode/Sources/StringForMessageTimestampStatus.swift")
+        self.assertIn("if let badge = attribute as? QxGramStatusBadgeMessageAttribute, !badge.label.isEmpty", status)
+        self.assertIn('dateText = "\\(dateText) \\(badge.label)"', status)
+        self.assertIn("break", status)
+
+        copy_text = source("submodules/TelegramCore/Sources/State/QxGramTtlMediaCopy.swift")
+        self.assertIn("attributes.append(QxGramStatusBadgeMessageAttribute(label: qxGramDeletedMessageLabel(.ttl)))", copy_text)
 
 
 class QxGramScreenshotTests(unittest.TestCase):

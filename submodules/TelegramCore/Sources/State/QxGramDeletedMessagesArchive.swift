@@ -109,7 +109,6 @@ public func qxGramArchiveMessages(transaction: Transaction, messages: [Message],
 public func qxGramSynthesizeArchivedMessage(_ item: QxGramArchivedMessage, showTtl: Bool = true) -> Message {
     let reason = QxGramDeletedReason(rawValue: item.reason) ?? .deletedByOther
     let label = qxGramDeletedMessageLabel(reason, showTtl: showTtl)
-    let text = item.text.isEmpty ? label : "\(label)\n\(item.text)"
     return Message(
         stableId: UInt32(truncatingIfNeeded: item.stableId),
         stableVersion: 0,
@@ -126,8 +125,8 @@ public func qxGramSynthesizeArchivedMessage(_ item: QxGramArchivedMessage, showT
         customTags: [],
         forwardInfo: nil,
         author: qxGramDecodePeer(item.authorData),
-        text: text,
-        attributes: [],
+        text: item.text,
+        attributes: [QxGramStatusBadgeMessageAttribute(label: label)],
         media: qxGramDecodeMedia(item.mediaData),
         peers: SimpleDictionary(),
         associatedMessages: SimpleDictionary(),
