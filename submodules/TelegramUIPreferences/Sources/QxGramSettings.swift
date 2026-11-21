@@ -12,6 +12,7 @@ public enum QxGramSetting: String {
     case showTtl
     case allowScreenshots
     case callRecording
+    case alwaysForward
 }
 
 public final class QxGramSettings {

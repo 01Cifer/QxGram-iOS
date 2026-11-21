@@ -459,7 +459,16 @@ private func ephemeralReplacementContextMenuItems(chatPresentationInterfaceState
 
         if let replacementMessage {
             let isForwardingDisabled = (replacementMessage.attributes.first(where: { $0 is EphemeralMessageAttribute }) as? EphemeralMessageAttribute)?.isForwardingDisabled ?? false
-            if !isForwardingDisabled && !isCopyProtected && !replacementMessage.containsSecretMedia && !replacementMessage.media.contains(where: { $0 is TelegramMediaAction || $0 is TelegramMediaExpiredContent }) {
+            let normalForwardVisible = !isForwardingDisabled && !isCopyProtected && !replacementMessage.containsSecretMedia && !replacementMessage.media.contains(where: { $0 is TelegramMediaAction || $0 is TelegramMediaExpiredContent })
+            let copyForwardEnabled = QxGramSettings(accountId: context.account.id).value(.alwaysForward) && qxGramCanCopyForwardAsNew(replacementMessage)
+            if copyForwardEnabled {
+                actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.Conversation_ContextMenuForward, icon: { theme in
+                    return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Forward"), color: theme.actionSheet.primaryTextColor)
+                }, action: { _, f in
+                    interfaceInteraction.copyForwardMessages([replacementMessage])
+                    f(.dismissWithoutContent)
+                })))
+            } else if normalForwardVisible {
                 actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.Conversation_ContextMenuForward, icon: { theme in
                     return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Forward"), color: theme.actionSheet.primaryTextColor)
                 }, action: { _, f in
@@ -1945,7 +1954,8 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
             })))
         }
 
-        if data.messageActions.options.contains(.forward) {
+        let copyForwardEnabled = QxGramSettings(accountId: context.account.id).value(.alwaysForward) && qxGramCanCopyForwardAsNew(message)
+        if !copyForwardEnabled && data.messageActions.options.contains(.forward) {
             if !isCopyProtected {
                 actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.Conversation_ContextMenuForward, icon: { theme in
                     return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Forward"), color: theme.actionSheet.primaryTextColor)
@@ -1954,6 +1964,15 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                     f(.dismissWithoutContent)
                 })))
             }
+        }
+
+        if copyForwardEnabled {
+            actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.Conversation_ContextMenuForward, icon: { theme in
+                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Forward"), color: theme.actionSheet.primaryTextColor)
+            }, action: { _, f in
+                interfaceInteraction.copyForwardMessages(selectAll || isImage ? messages : [message])
+                f(.dismissWithoutContent)
+            })))
         }
         
         if data.messageActions.options.contains(.report) {

@@ -19,6 +19,7 @@ import Speak
 import TranslateUI
 import UndoUI
 import ContextUI
+import TelegramUIPreferences
 import SaveToCameraRoll
 import Pasteboard
 import ChatRichTextEditorComposer
@@ -134,9 +135,10 @@ class ChatImageGalleryItem: GalleryItem {
     let performAction: (GalleryControllerInteractionTapAction) -> Void
     let openActionOptions: (GalleryControllerInteractionTapAction, Message) -> Void
     let sendSticker: ((FileMediaReference) -> Void)?
+    let copyForwardMessages: ([Message]) -> Void
     let present: (ViewController, Any?) -> Void
     
-    init(context: AccountContext, presentationData: PresentationData, message: Message, mediaSubject: GalleryMediaSubject? = nil, location: MessageHistoryEntryLocation?, translateToLanguage: String? = nil, peerIsCopyProtected: Bool = false, isSecret: Bool = false, displayInfoOnTop: Bool, performAction: @escaping (GalleryControllerInteractionTapAction) -> Void, openActionOptions: @escaping (GalleryControllerInteractionTapAction, Message) -> Void, sendSticker: ((FileMediaReference) -> Void)?, present: @escaping (ViewController, Any?) -> Void) {
+    init(context: AccountContext, presentationData: PresentationData, message: Message, mediaSubject: GalleryMediaSubject? = nil, location: MessageHistoryEntryLocation?, translateToLanguage: String? = nil, peerIsCopyProtected: Bool = false, isSecret: Bool = false, displayInfoOnTop: Bool, performAction: @escaping (GalleryControllerInteractionTapAction) -> Void, openActionOptions: @escaping (GalleryControllerInteractionTapAction, Message) -> Void, sendSticker: ((FileMediaReference) -> Void)?, copyForwardMessages: @escaping ([Message]) -> Void = { _ in }, present: @escaping (ViewController, Any?) -> Void) {
         self.context = context
         self.presentationData = presentationData
         self.message = message
@@ -149,11 +151,13 @@ class ChatImageGalleryItem: GalleryItem {
         self.performAction = performAction
         self.openActionOptions = openActionOptions
         self.sendSticker = sendSticker
+        self.copyForwardMessages = copyForwardMessages
         self.present = present
     }
     
     func node(synchronous: Bool) -> GalleryItemNode {
         let node = ChatImageGalleryItemNode(context: self.context, presentationData: self.presentationData, performAction: self.performAction, openActionOptions: self.openActionOptions, sendSticker: self.sendSticker, present: self.present)
+        node.copyForwardMessages = self.copyForwardMessages
         
         node.setMessage(self.message, mediaSubject: self.mediaSubject, displayInfo: !self.displayInfoOnTop, translateToLanguage: self.translateToLanguage, peerIsCopyProtected: self.peerIsCopyProtected, isSecret: self.isSecret, location: self.location)
         if let (media, _) = selectedMediaAndMediaImageForMessage(message: self.message, mediaSubject: self.mediaSubject) {
@@ -228,6 +232,7 @@ final class ChatImageGalleryItemNode: ZoomableContentGalleryItemNode {
     private let presentationData: PresentationData
     
     private var sendSticker: ((FileMediaReference) -> Void)?
+    var copyForwardMessages: ([Message]) -> Void = { _ in }
     
     private let imageNode: TransformImageNode
     private var recognizedContentNode: RecognizedContentContainer?
@@ -780,6 +785,17 @@ final class ChatImageGalleryItemNode: ZoomableContentGalleryItemNode {
                             }
                             controller.present(UndoOverlayController(presentationData: strongSelf.presentationData, content: .mediaSaved(text: strongSelf.presentationData.strings.Gallery_ImageSaved), elevatedLayout: false, animateInAsReplacement: false, action: { _ in return false }), in: .window(.root))
                         })
+                    })))
+                }
+
+                if QxGramSettings(accountId: context.account.id).value(.alwaysForward), qxGramCanCopyForwardAsNew(message), message.paidContent == nil, !message.media.contains(where: { $0 is TelegramMediaExpiredContent }) {
+                    let copyForwardMessages = self.copyForwardMessages
+                    items.append(.action(ContextMenuActionItem(text: self.presentationData.strings.Conversation_ContextMenuForward, icon: { theme in
+                        return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Forward"), color: theme.actionSheet.primaryTextColor)
+                    }, action: { [weak self] _, f in
+                        f(.default)
+                        self?.galleryController()?.dismiss()
+                        copyForwardMessages([message])
                     })))
                 }
             }

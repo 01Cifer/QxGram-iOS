@@ -82,6 +82,7 @@ public final class ChatPanelInterfaceInteraction {
     public let forwardSelectedMessages: () -> Void
     public let forwardCurrentForwardMessages: () -> Void
     public let forwardMessages: ([EngineRawMessage]) -> Void
+    public var copyForwardMessages: ([EngineRawMessage]) -> Void = { _ in }
     public let updateForwardOptionsState: ((ChatInterfaceForwardOptionsState) -> ChatInterfaceForwardOptionsState) -> Void
     public let presentForwardOptions: (UIView) -> Void
     public let presentReplyOptions: (UIView) -> Void

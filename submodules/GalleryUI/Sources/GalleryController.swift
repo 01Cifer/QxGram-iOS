@@ -292,6 +292,7 @@ public func galleryItemForEntry(
     storeMediaPlaybackState: @escaping (MessageId, Double?, Double) -> Void = { _, _, _ in },
     generateStoreAfterDownload: ((Message, TelegramMediaFile) -> (() -> Void)?)? = nil,
     sendSticker: ((FileMediaReference) -> Void)?,
+    copyForwardMessages: @escaping ([Message]) -> Void = { _ in },
     present: @escaping (ViewController, Any?) -> Void) -> GalleryItem?
 {
     let message = entry.entry.message
@@ -338,6 +339,7 @@ public func galleryItemForEntry(
                 performAction: performAction,
                 openActionOptions: openActionOptions,
                 storeMediaPlaybackState: storeMediaPlaybackState,
+                copyForwardMessages: copyForwardMessages,
                 present: present
             )
         } else {
@@ -354,6 +356,7 @@ public func galleryItemForEntry(
                 performAction: performAction,
                 openActionOptions: openActionOptions,
                 sendSticker: sendSticker,
+                copyForwardMessages: copyForwardMessages,
                 present: present
             )
         }
@@ -432,6 +435,7 @@ public func galleryItemForEntry(
                 performAction: performAction,
                 openActionOptions: openActionOptions,
                 storeMediaPlaybackState: storeMediaPlaybackState,
+                copyForwardMessages: copyForwardMessages,
                 present: present
             )
         } else {
@@ -460,6 +464,7 @@ public func galleryItemForEntry(
                         performAction: performAction,
                         openActionOptions: openActionOptions,
                         sendSticker: sendSticker,
+                        copyForwardMessages: copyForwardMessages,
                         present: present
                     )
                 } else {
@@ -539,6 +544,7 @@ public func galleryItemForEntry(
                 performAction: performAction,
                 openActionOptions: openActionOptions,
                 storeMediaPlaybackState: storeMediaPlaybackState,
+                copyForwardMessages: copyForwardMessages,
                 present: present
             )
         }
@@ -1031,6 +1037,7 @@ public class GalleryController: ViewController, StandalonePresentableController,
                                     storeMediaPlaybackState: strongSelf.actionInteraction?.storeMediaPlaybackState ?? { _, _, _ in },
                                     generateStoreAfterDownload: strongSelf.generateStoreAfterDownload,
                                     sendSticker: strongSelf.actionInteraction?.sendSticker,
+                                    copyForwardMessages: strongSelf.actionInteraction?.copyForwardMessages ?? { _ in },
                                     present: { [weak strongSelf] c, a in
                                         if let strongSelf {
                                             strongSelf.presentInGlobalOverlay(c, with: a)
@@ -1689,6 +1696,7 @@ public class GalleryController: ViewController, StandalonePresentableController,
                 storeMediaPlaybackState: self.actionInteraction?.storeMediaPlaybackState ?? { _, _, _ in },
                 generateStoreAfterDownload: self.generateStoreAfterDownload,
                 sendSticker: self.actionInteraction?.sendSticker,
+                copyForwardMessages: self.actionInteraction?.copyForwardMessages ?? { _ in },
                 present: { [weak self] c, a in
                 if let strongSelf = self {
                     strongSelf.presentInGlobalOverlay(c, with: a)
@@ -1775,7 +1783,7 @@ public class GalleryController: ViewController, StandalonePresentableController,
                                             if entry.stableId == strongSelf.centralEntryStableId {
                                                 isCentral = true
                                             }
-                                            if let item = galleryItemForEntry(context: strongSelf.context, presentationData: strongSelf.presentationData, entry: entry, isCentral: isCentral, streamVideos: false, fromPlayingVideo: isCentral && strongSelf.fromPlayingVideo, landscape: isCentral && strongSelf.landscape, timecode: isCentral ? strongSelf.timecode : nil, playbackRate: { return self?.playbackRate }, displayInfoOnTop: displayInfoOnTop, configuration: strongSelf.configuration, peerIsCopyProtected: view.peerIsCopyProtected, performAction: strongSelf.performAction, openActionOptions: strongSelf.openActionOptions, storeMediaPlaybackState: strongSelf.actionInteraction?.storeMediaPlaybackState ?? { _, _, _ in }, generateStoreAfterDownload: strongSelf.generateStoreAfterDownload, sendSticker: strongSelf.actionInteraction?.sendSticker, present: { [weak self] c, a in
+                                            if let item = galleryItemForEntry(context: strongSelf.context, presentationData: strongSelf.presentationData, entry: entry, isCentral: isCentral, streamVideos: false, fromPlayingVideo: isCentral && strongSelf.fromPlayingVideo, landscape: isCentral && strongSelf.landscape, timecode: isCentral ? strongSelf.timecode : nil, playbackRate: { return self?.playbackRate }, displayInfoOnTop: displayInfoOnTop, configuration: strongSelf.configuration, peerIsCopyProtected: view.peerIsCopyProtected, performAction: strongSelf.performAction, openActionOptions: strongSelf.openActionOptions, storeMediaPlaybackState: strongSelf.actionInteraction?.storeMediaPlaybackState ?? { _, _, _ in }, generateStoreAfterDownload: strongSelf.generateStoreAfterDownload, sendSticker: strongSelf.actionInteraction?.sendSticker, copyForwardMessages: strongSelf.actionInteraction?.copyForwardMessages ?? { _ in }, present: { [weak self] c, a in
                                                 if let strongSelf = self {
                                                     strongSelf.presentInGlobalOverlay(c, with: a)
                                                 }
@@ -1828,7 +1836,7 @@ public class GalleryController: ViewController, StandalonePresentableController,
                                                 if entry.stableId == strongSelf.centralEntryStableId {
                                                     isCentral = true
                                                 }
-                                                if let item = galleryItemForEntry(context: strongSelf.context, presentationData: strongSelf.presentationData, entry: entry, isCentral: isCentral, streamVideos: false, fromPlayingVideo: isCentral && strongSelf.fromPlayingVideo, landscape: isCentral && strongSelf.landscape, timecode: isCentral ? strongSelf.timecode : nil, playbackRate: { return self?.playbackRate }, displayInfoOnTop: displayInfoOnTop, configuration: strongSelf.configuration, performAction: strongSelf.performAction, openActionOptions: strongSelf.openActionOptions, storeMediaPlaybackState: strongSelf.actionInteraction?.storeMediaPlaybackState ?? { _, _, _ in }, generateStoreAfterDownload: strongSelf.generateStoreAfterDownload, sendSticker: strongSelf.actionInteraction?.sendSticker, present: { [weak self] c, a in
+                                                if let item = galleryItemForEntry(context: strongSelf.context, presentationData: strongSelf.presentationData, entry: entry, isCentral: isCentral, streamVideos: false, fromPlayingVideo: isCentral && strongSelf.fromPlayingVideo, landscape: isCentral && strongSelf.landscape, timecode: isCentral ? strongSelf.timecode : nil, playbackRate: { return self?.playbackRate }, displayInfoOnTop: displayInfoOnTop, configuration: strongSelf.configuration, performAction: strongSelf.performAction, openActionOptions: strongSelf.openActionOptions, storeMediaPlaybackState: strongSelf.actionInteraction?.storeMediaPlaybackState ?? { _, _, _ in }, generateStoreAfterDownload: strongSelf.generateStoreAfterDownload, sendSticker: strongSelf.actionInteraction?.sendSticker, copyForwardMessages: strongSelf.actionInteraction?.copyForwardMessages ?? { _ in }, present: { [weak self] c, a in
                                                     if let strongSelf = self {
                                                         strongSelf.presentInGlobalOverlay(c, with: a)
                                                     }

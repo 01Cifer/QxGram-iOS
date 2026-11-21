@@ -1722,7 +1722,13 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                     },
                     sendSticker: canSendMessagesToChat(self.presentationInterfaceState) ? { [weak self] file in
                         let _ = self?.controllerInteraction?.sendSticker(file, false, false, nil, false, nil, nil, nil, [])
-                    } : nil
+                    } : nil,
+                    copyForwardMessages: { [weak self] messages in
+                        guard let self, !messages.isEmpty else {
+                            return
+                        }
+                        self.copyForwardMessages(messages: messages)
+                    }
                 ),
                 navigateToMessageContext: { [weak self] message in
                     Task {

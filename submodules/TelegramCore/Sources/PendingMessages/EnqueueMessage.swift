@@ -222,7 +222,7 @@ private extension EnqueueMessage {
     }
 }
 
-func augmentMediaWithReference(_ mediaReference: AnyMediaReference) -> Media {
+public func augmentMediaWithReference(_ mediaReference: AnyMediaReference) -> Media {
     if let file = mediaReference.media as? TelegramMediaFile {
         if file.partialReference != nil {
             return file
@@ -356,7 +356,7 @@ func resentMessageRequestedAttribute(_ attribute: MessageAttribute, isSecretChat
 /// become a media timer in a cloud chat or override a secret chat's own, and its paid stars, send-as
 /// peer and schedule are the source chat's. `hidesCaption` drops the formatting of a caption the
 /// forward hides.
-func forwardCopyRequestedAttributes(sourceAttributes: [MessageAttribute], forwardAttributes: [MessageAttribute], hidesCaption: Bool) -> [MessageAttribute] {
+public func forwardCopyRequestedAttributes(sourceAttributes: [MessageAttribute], forwardAttributes: [MessageAttribute], hidesCaption: Bool) -> [MessageAttribute] {
     let contentAttributes = sourceAttributes.filter { attribute in
         switch attribute {
         case _ as TextEntitiesMessageAttribute:
@@ -403,7 +403,7 @@ func forwardedMessageAttributes(requestedAttributes: [MessageAttribute], sourceA
 
 /// The local grouping key of a forwarded message: an album stays one album, under a key of its own
 /// so it does not join the source's.
-func forwardGroupingKey(grouping: EnqueueMessageGrouping, sourceGroupingKey: Int64?, generatedKeys: inout [Int64: Int64]) -> Int64? {
+public func forwardGroupingKey(grouping: EnqueueMessageGrouping, sourceGroupingKey: Int64?, generatedKeys: inout [Int64: Int64]) -> Int64? {
     switch grouping {
     case .none:
         return nil

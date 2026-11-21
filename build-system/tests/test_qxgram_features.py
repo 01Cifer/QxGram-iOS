@@ -432,5 +432,69 @@ class QxGramCallRecordingTests(unittest.TestCase):
         self.assertLess(consent_index, start_index)
 
 
+class QxGramCopyForwardTests(unittest.TestCase):
+    def test_setting_is_default_off(self):
+        settings = source("submodules/TelegramUIPreferences/Sources/QxGramSettings.swift")
+        self.assertIn("case alwaysForward", settings)
+        self.assertIn("return UserDefaults.standard.bool(forKey: self.key(setting))", settings)
+        controller = source("submodules/SettingsUI/Sources/QxGramSettingsController.swift")
+        self.assertIn('title = "Всегда пересылать"', controller)
+        self.assertIn("setting = .alwaysForward", controller)
+
+    def test_core_copy_helper_creates_new_messages_without_forward_header(self):
+        helper = source("submodules/TelegramCore/Sources/PendingMessages/QxGramCopyForward.swift")
+        self.assertIn("public func qxGramCanCopyForwardAsNew(_ message: Message) -> Bool", helper)
+        self.assertIn("media is TelegramMediaAction || media is TelegramMediaExpiredContent || media is TelegramMediaPoll || media is TelegramMediaTodo || media is TelegramMediaPaidContent", helper)
+        self.assertIn("public func qxGramCopyForwardEnqueueMessages(_ messages: [Message], hidesCaptions: Bool = false) -> [EnqueueMessage]", helper)
+        self.assertIn(".standalone(media: augmented)", helper)
+        self.assertIn(".message(message: MessageReference(message), media: augmented)", helper)
+        self.assertIn("forwardCopyRequestedAttributes(", helper)
+        self.assertIn("forwardGroupingKey(grouping: .auto", helper)
+        self.assertIn("!isLastInAlbum", helper)
+        enqueue = source("submodules/TelegramCore/Sources/PendingMessages/EnqueueMessage.swift")
+        self.assertIn("public func augmentMediaWithReference(", enqueue)
+        self.assertIn("public func forwardCopyRequestedAttributes(", enqueue)
+        self.assertIn("public func forwardGroupingKey(", enqueue)
+
+    def test_chat_coordinator_prefetches_and_enqueues_as_new(self):
+        coordinator = source("submodules/TelegramUI/Sources/QxGramCopyForwardMessages.swift")
+        self.assertIn("func copyForwardMessages(messages: [EngineRawMessage])", coordinator)
+        self.assertIn("OverlayStatusController(theme: presentationData.theme, type: .loading(cancelled:", coordinator)
+        self.assertIn("fetchMediaData(context: context", coordinator)
+        self.assertIn("combineLatest(fetchSignals)", coordinator)
+        self.assertIn("timeout(30.0", coordinator)
+        self.assertIn("Не удалось скачать медиа для пересылки", coordinator)
+        self.assertIn("makePeerSelectionController(", coordinator)
+        self.assertIn("qxGramCopyForwardEnqueueMessages(messages)", coordinator)
+        self.assertIn("withUpdatedCorrelationId(", coordinator)
+        self.assertIn("enqueueMessages(account: self.context.account", coordinator)
+
+    def test_long_press_and_ephemeral_menus_have_opt_in_item(self):
+        menus = source("submodules/TelegramUI/Sources/ChatInterfaceStateContextMenus.swift")
+        self.assertIn('QxGramSettings(accountId: context.account.id).value(.alwaysForward)', menus)
+        self.assertIn("interfaceInteraction.copyForwardMessages(selectAll || isImage ? messages : [message])", menus)
+        self.assertIn("interfaceInteraction.copyForwardMessages([replacementMessage])", menus)
+
+    def test_viewer_menus_have_copy_forward(self):
+        gallery = source("submodules/GalleryUI/Sources/GalleryController.swift")
+        self.assertIn("copyForwardMessages: @escaping ([Message]) -> Void = { _ in }", gallery)
+        self.assertIn("actionInteraction?.copyForwardMessages", gallery)
+        image = source("submodules/GalleryUI/Sources/Items/ChatImageGalleryItem.swift")
+        self.assertIn('QxGramSettings(accountId: context.account.id).value(.alwaysForward)', image)
+        self.assertIn("copyForwardMessages([message])", image)
+        video = source("submodules/GalleryUI/Sources/Items/UniversalVideoGalleryItem.swift")
+        self.assertIn('QxGramSettings(accountId: strongSelf.context.account.id).value(.alwaysForward)', video)
+        self.assertIn("copyForwardMessages([message])", video)
+
+    def test_gallery_action_interaction_is_wired(self):
+        action = source("submodules/AccountContext/Sources/GalleryController.swift")
+        self.assertIn("public let copyForwardMessages: ([EngineRawMessage]) -> Void", action)
+        self.assertIn("copyForwardMessages: @escaping ([EngineRawMessage]) -> Void = { _ in }", action)
+        chat = source("submodules/TelegramUI/Sources/ChatController.swift")
+        self.assertIn("self.copyForwardMessages(messages: messages)", chat)
+        panel = source("submodules/ChatPresentationInterfaceState/Sources/ChatPanelInterfaceInteraction.swift")
+        self.assertIn("public var copyForwardMessages: ([EngineRawMessage]) -> Void = { _ in }", panel)
+
+
 if __name__ == "__main__":
     unittest.main()

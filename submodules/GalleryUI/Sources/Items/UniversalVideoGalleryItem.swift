@@ -72,9 +72,10 @@ public class UniversalVideoGalleryItem: GalleryItem {
     let performAction: (GalleryControllerInteractionTapAction) -> Void
     let openActionOptions: (GalleryControllerInteractionTapAction, Message) -> Void
     let storeMediaPlaybackState: (MessageId, Double?, Double) -> Void
+    let copyForwardMessages: ([Message]) -> Void
     let present: (ViewController, Any?) -> Void
-
-    public init(context: AccountContext, presentationData: PresentationData, content: UniversalVideoContent, originData: GalleryItemOriginData?, indexData: GalleryItemIndexData?, contentInfo: UniversalVideoGalleryItemContentInfo?, caption: NSAttributedString, description: NSAttributedString? = nil, credit: NSAttributedString? = nil, displayInfoOnTop: Bool = false, hideControls: Bool = false, fromPlayingVideo: Bool = false, isSecret: Bool = false, landscape: Bool = false, timecode: Double? = nil, peerIsCopyProtected: Bool = false, playbackRate: @escaping () -> Double?, configuration: GalleryConfiguration? = nil, playbackCompleted: @escaping () -> Void = {}, performAction: @escaping (GalleryControllerInteractionTapAction) -> Void, openActionOptions: @escaping (GalleryControllerInteractionTapAction, Message) -> Void, storeMediaPlaybackState: @escaping (MessageId, Double?, Double) -> Void, present: @escaping (ViewController, Any?) -> Void) {
+    
+    public init(context: AccountContext, presentationData: PresentationData, content: UniversalVideoContent, originData: GalleryItemOriginData?, indexData: GalleryItemIndexData?, contentInfo: UniversalVideoGalleryItemContentInfo?, caption: NSAttributedString, description: NSAttributedString? = nil, credit: NSAttributedString? = nil, displayInfoOnTop: Bool = false, hideControls: Bool = false, fromPlayingVideo: Bool = false, isSecret: Bool = false, landscape: Bool = false, timecode: Double? = nil, peerIsCopyProtected: Bool = false, playbackRate: @escaping () -> Double?, configuration: GalleryConfiguration? = nil, playbackCompleted: @escaping () -> Void = {}, performAction: @escaping (GalleryControllerInteractionTapAction) -> Void, openActionOptions: @escaping (GalleryControllerInteractionTapAction, Message) -> Void, storeMediaPlaybackState: @escaping (MessageId, Double?, Double) -> Void, copyForwardMessages: @escaping ([Message]) -> Void = { _ in }, present: @escaping (ViewController, Any?) -> Void) {
         self.context = context
         self.presentationData = presentationData
         self.content = content
@@ -97,11 +98,13 @@ public class UniversalVideoGalleryItem: GalleryItem {
         self.performAction = performAction
         self.openActionOptions = openActionOptions
         self.storeMediaPlaybackState = storeMediaPlaybackState
+        self.copyForwardMessages = copyForwardMessages
         self.present = present
     }
     
     public func node(synchronous: Bool) -> GalleryItemNode {
         let node = UniversalVideoGalleryItemNode(context: self.context, presentationData: self.presentationData, performAction: self.performAction, openActionOptions: self.openActionOptions, present: self.present)
+        node.copyForwardMessages = self.copyForwardMessages
         
         node.setupItem(self)
         
@@ -958,6 +961,7 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode {
     private var requiresDownload = false
     
     private(set) var item: UniversalVideoGalleryItem?
+    var copyForwardMessages: ([Message]) -> Void = { _ in }
     private var playbackRate: Double?
     private var videoQuality: UniversalVideoContentVideoQuality = .auto
     private let playbackRatePromise = ValuePromise<Double>()
@@ -3831,6 +3835,17 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode {
                     })))
                 }
                 
+                if let (message, _, _) = strongSelf.contentInfo(), QxGramSettings(accountId: strongSelf.context.account.id).value(.alwaysForward), qxGramCanCopyForwardAsNew(message), message.paidContent == nil, !message.media.contains(where: { $0 is TelegramMediaExpiredContent }) {
+                    let copyForwardMessages = strongSelf.copyForwardMessages
+                    items.append(.action(ContextMenuActionItem(text: strongSelf.presentationData.strings.Conversation_ContextMenuForward, icon: { theme in
+                        return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Forward"), color: theme.actionSheet.primaryTextColor)
+                    }, action: { [weak self] _, f in
+                        f(.default)
+                        self?.galleryController()?.dismiss()
+                        copyForwardMessages([message])
+                    })))
+                }
+
                 if !items.isEmpty {
                     items.append(.separator)
                 }

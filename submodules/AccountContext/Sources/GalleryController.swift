@@ -36,6 +36,7 @@ public final class GalleryControllerActionInteraction {
     public let editMedia: (EngineMessage.Id, [UIView], @escaping () -> Void) -> Void
     public let updateCanReadHistory: (Bool) -> Void
     public let sendSticker: ((FileMediaReference) -> Void)?
+    public let copyForwardMessages: ([EngineRawMessage]) -> Void
 
     public init(
         openUrl: @escaping (String, Bool, Bool) -> Void,
@@ -49,7 +50,8 @@ public final class GalleryControllerActionInteraction {
         storeMediaPlaybackState: @escaping (EngineMessage.Id, Double?, Double) -> Void, 
         editMedia: @escaping (EngineMessage.Id, [UIView], @escaping () -> Void) -> Void,
         updateCanReadHistory: @escaping (Bool) -> Void,
-        sendSticker: ((FileMediaReference) -> Void)?
+        sendSticker: ((FileMediaReference) -> Void)?,
+        copyForwardMessages: @escaping ([EngineRawMessage]) -> Void = { _ in }
     ) {
         self.openUrl = openUrl
         self.openUrlIn = openUrlIn
@@ -63,6 +65,7 @@ public final class GalleryControllerActionInteraction {
         self.editMedia = editMedia
         self.updateCanReadHistory = updateCanReadHistory
         self.sendSticker = sendSticker
+        self.copyForwardMessages = copyForwardMessages
     }
 }
 

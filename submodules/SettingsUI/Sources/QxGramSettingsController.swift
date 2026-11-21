@@ -76,6 +76,7 @@ private enum QxGramSettingsEntry: ItemListNodeEntry {
     case showTtl(Bool)
     case screenshots(Bool)
     case callRecording(Bool)
+    case alwaysForward(Bool)
     case pendingNotice
     case cache(String, Bool)
     case cacheNotice
@@ -103,12 +104,14 @@ private enum QxGramSettingsEntry: ItemListNodeEntry {
             return 4
         case .callRecording:
             return 5
-        case .pendingNotice:
+        case .alwaysForward:
             return 6
-        case .cache:
+        case .pendingNotice:
             return 7
-        case .cacheNotice:
+        case .cache:
             return 8
+        case .cacheNotice:
+            return 9
         }
     }
 
@@ -146,6 +149,10 @@ private enum QxGramSettingsEntry: ItemListNodeEntry {
             title = "Запись звонков"
             setting = .callRecording
             value = current
+        case let .alwaysForward(current):
+            title = "Всегда пересылать"
+            setting = .alwaysForward
+            value = current
         case .pendingNotice:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Все функции QxGram активны: архив удалённых, TTL-медиа, скриншоты, Ghost. Переключатели применяются сразу."), sectionId: self.section)
         case let .cache(label, isEnabled):
@@ -169,6 +176,7 @@ private func qxGramSettingsEntries(_ settings: QxGramSettings) -> [QxGramSetting
         .showTtl(settings.value(.showTtl)),
         .screenshots(settings.value(.allowScreenshots)),
         .callRecording(settings.value(.callRecording)),
+        .alwaysForward(settings.value(.alwaysForward)),
         .pendingNotice
     ]
 }

@@ -4867,7 +4867,14 @@ extension ChatControllerImpl {
         }, chatController: { [weak self] in
             return self
         }, statuses: ChatPanelInterfaceInteractionStatuses(editingMessage: self.editingMessage.get(), startingBot: self.startingBot.get(), unblockingPeer: self.unblockingPeer.get(), searching: self.searching.get(), loadingMessage: self.loadingMessage.get(), inlineSearch: self.performingInlineSearch.get()))
-        
+
+        interfaceInteraction.copyForwardMessages = { [weak self] messages in
+            guard let self, !messages.isEmpty else {
+                return
+            }
+            self.copyForwardMessages(messages: messages)
+        }
+
         self.interfaceInteraction = interfaceInteraction
         
         if let search = self.focusOnSearchAfterAppearance {
