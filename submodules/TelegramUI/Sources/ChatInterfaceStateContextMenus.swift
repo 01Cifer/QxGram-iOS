@@ -13,6 +13,7 @@ import ContextUI
 import LegacyUI
 import AppBundle
 import SaveToCameraRoll
+import GalleryUI
 import PresentationDataUtils
 import TelegramPresentationData
 import TelegramStringFormatting
@@ -1357,10 +1358,11 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
         }
         
         let isCopyProtected = chatPresentationInterfaceState.copyProtectionEnabled || message.isCopyProtected()
+        let canCopyProtectedText = isCopyProtected && QxGramAlwaysSavePolicy.isEnabled(accountId: context.account.id)
         if !messageText.isEmpty || richMessageMarkdown != nil || (resourceAvailable && isImage) || diceEmoji != nil {
             if !isExpired {
                 if !isPoll {
-                    if !isCopyProtected {
+                    if !isCopyProtected || canCopyProtectedText {
                         actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.Conversation_ContextMenuCopy, icon: { theme in
                             return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Copy"), color: theme.actionSheet.primaryTextColor)
                         }, action: { _, f in
@@ -1484,7 +1486,7 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                             }
                         }
                         
-                        controllerInteraction.performTextSelectionAction(message, !isCopyProtected, NSAttributedString(string: messageText), messageEntities, .translate)
+                        controllerInteraction.performTextSelectionAction(message, !isCopyProtected || QxGramAlwaysSavePolicy.isEnabled(accountId: context.account.id), NSAttributedString(string: messageText), messageEntities, .translate)
                         f(.default)
                     })))
                 }
@@ -1505,14 +1507,15 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                             text = translation.text
                         }
                         
-                        controllerInteraction.performTextSelectionAction(message, !isCopyProtected, NSAttributedString(string: text), nil, .speak)
+                        controllerInteraction.performTextSelectionAction(message, !isCopyProtected || QxGramAlwaysSavePolicy.isEnabled(accountId: context.account.id), NSAttributedString(string: text), nil, .speak)
                         f(.default)
                     })))
                 }
             }
         }
         
-        if resourceAvailable, !message.containsSecretMedia && !isCopyProtected {
+        let alwaysSaveEnabled = QxGramAlwaysSavePolicy.isEnabled(accountId: context.account.id)
+        if resourceAvailable, qxGramCanSaveMedia(message, peerIsCopyProtected: false, accountId: context.account.id) {
             var mediaReference: AnyMediaReference?
             var isVideo = false
             for media in message.effectiveMedia {
@@ -1526,11 +1529,20 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                 }
             }
             if let mediaReference = mediaReference {
-                actions.append(.action(ContextMenuActionItem(text: isVideo ? chatPresentationInterfaceState.strings.Gallery_SaveVideo : chatPresentationInterfaceState.strings.Gallery_SaveImage, icon: { theme in
+                actions.append(.action(ContextMenuActionItem(text: alwaysSaveEnabled ? "Сохранить в галерею" : (isVideo ? chatPresentationInterfaceState.strings.Gallery_SaveVideo : chatPresentationInterfaceState.strings.Gallery_SaveImage), icon: { theme in
                     return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Save"), color: theme.actionSheet.primaryTextColor)
                 }, action: { _, f in
-                    let _ = (saveToCameraRoll(context: context, userLocation: .peer(message.id.peerId), mediaReference: mediaReference)
-                             |> deliverOnMainQueue).startStandalone(completed: {
+                    let _ = (qxGramSaveToCameraRollWithPermission(context: context, userLocation: .peer(message.id.peerId), mediaReference: mediaReference, present: { c, a in
+                        context.sharedContext.presentGlobalController(c, a)
+                    })
+                    |> deliverOnMainQueue).startStandalone(next: { result in
+                        guard case .saved = result else {
+                            let alert = textAlertController(context: context, title: "QxGram", text: "Не разрешён доступ к Фото. Разрешите сохранение в настройках iOS.", actions: [
+                                TextAlertAction(type: .defaultAction, title: "OK", action: {})
+                            ])
+                            context.sharedContext.presentGlobalController(alert, nil)
+                            return
+                        }
                         Queue.mainQueue().after(0.2) {
                             let presentationData = context.sharedContext.currentPresentationData.with { $0 }
                             controllerInteraction.presentControllerInCurrent(UndoOverlayController(presentationData: presentationData, content: .mediaSaved(text: isVideo ? presentationData.strings.Gallery_VideoSaved : presentationData.strings.Gallery_ImageSaved), elevatedLayout: false, animateInAsReplacement: false, action: { _ in return true }), nil)
@@ -1538,6 +1550,17 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                     })
                     f(.default)
                 })))
+
+                if alwaysSaveEnabled {
+                    actions.append(.action(ContextMenuActionItem(text: "Сохранить в Файлы", icon: { theme in
+                        return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Save"), color: theme.actionSheet.primaryTextColor)
+                    }, action: { _, f in
+                        let _ = qxGramSaveToFiles(context: context, mediaReference: mediaReference, present: { c, a in
+                            context.sharedContext.presentGlobalController(c, a)
+                        })
+                        f(.default)
+                    })))
+                }
             }
         }
         

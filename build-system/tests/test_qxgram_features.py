@@ -496,5 +496,57 @@ class QxGramCopyForwardTests(unittest.TestCase):
         self.assertIn("public var copyForwardMessages: ([EngineRawMessage]) -> Void = { _ in }", panel)
 
 
+class QxGramAlwaysSaveTests(unittest.TestCase):
+    def test_setting_is_default_off(self):
+        settings = source("submodules/TelegramUIPreferences/Sources/QxGramSettings.swift")
+        self.assertIn("case alwaysSave", settings)
+        controller = source("submodules/SettingsUI/Sources/QxGramSettingsController.swift")
+        self.assertIn('title = "Всегда сохранять"', controller)
+        self.assertIn("setting = .alwaysSave", controller)
+        self.assertIn(".alwaysSave(settings.value(.alwaysSave))", controller)
+
+    def test_policy_uses_shared_settings_key(self):
+        policy = source("submodules/TelegramCore/Sources/State/QxGramAlwaysSavePolicy.swift")
+        self.assertIn("UserDefaults.standard.bool(forKey: QxGramTtlPolicy.key(accountId: accountId, setting: \"alwaysSave\"))", policy)
+
+    def test_photo_permission_wrapper_reports_denial(self):
+        wrapper = source("submodules/SaveToCameraRoll/Sources/QxGramSaveWithPermission.swift")
+        self.assertIn("case denied", wrapper)
+        self.assertIn("DeviceAccess.authorizeAccess(to: .mediaLibrary(.save)", wrapper)
+        self.assertIn("saveToCameraRoll(context: context", wrapper)
+
+    def test_files_helper_has_progress_and_clear_error(self):
+        helper = source("submodules/GalleryUI/Sources/QxGramAlwaysSave.swift")
+        self.assertIn("public func qxGramCanSaveMedia(", helper)
+        self.assertIn("public func qxGramSaveToFiles(", helper)
+        self.assertIn("legacyICloudFilePicker(theme: presentationData.theme, mode: .export", helper)
+        self.assertIn("OverlayStatusController(theme: presentationData.theme, type: .loading(cancelled:", helper)
+        self.assertIn("timeout(30.0", helper)
+        self.assertIn("Не удалось скачать медиа для сохранения", helper)
+        build = source("submodules/GalleryUI/BUILD")
+        self.assertIn("//submodules/LegacyMediaPickerUI:LegacyMediaPickerUI", build)
+
+    def test_long_press_gates_are_unlocked(self):
+        menus = source("submodules/TelegramUI/Sources/ChatInterfaceStateContextMenus.swift")
+        self.assertIn("QxGramAlwaysSavePolicy.isEnabled(accountId: context.account.id)", menus)
+        self.assertIn("qxGramCanSaveMedia(message, peerIsCopyProtected: false", menus)
+        self.assertIn('"Сохранить в галерею"', menus)
+        self.assertIn('"Сохранить в Файлы"', menus)
+
+    def test_viewer_gates_are_unlocked(self):
+        image = source("submodules/GalleryUI/Sources/Items/ChatImageGalleryItem.swift")
+        self.assertIn("qxGramCanSaveMedia(message, peerIsCopyProtected: self.peerIsCopyProtected", image)
+        self.assertIn("qxGramSaveToCameraRollWithPermission(", image)
+        self.assertIn("qxGramSaveToFiles(context: context", image)
+        video = source("submodules/GalleryUI/Sources/Items/UniversalVideoGalleryItem.swift")
+        self.assertIn("qxGramCanSaveMedia(message, peerIsCopyProtected: item.peerIsCopyProtected", video)
+        self.assertIn("qxGramSaveToFiles(context: strongSelf.context", video)
+        self.assertIn("qxGramSaveToCameraRollWithPermission(", video)
+
+    def test_copy_in_protected_chats_is_optional(self):
+        bubble = source("submodules/TelegramUI/Components/Chat/ChatMessageTextBubbleContentNode/Sources/ChatMessageTextBubbleContentNode.swift")
+        self.assertIn("QxGramAlwaysSavePolicy.isEnabled(accountId: item.context.account.id)", bubble)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1647,7 +1647,7 @@ public class ChatMessageTextBubbleContentNode: ChatMessageBubbleContentNode {
                     }
                 }
                 
-                let enableCopy = (!item.associatedData.isCopyProtectionEnabled && !item.message.isCopyProtected()) || item.message.id.peerId.isVerificationCodes
+                let enableCopy = (!item.associatedData.isCopyProtectionEnabled && !item.message.isCopyProtected()) || item.message.id.peerId.isVerificationCodes || QxGramAlwaysSavePolicy.isEnabled(accountId: item.context.account.id)
                 textSelectionNode.enableCopy = enableCopy
                 
                 var enableQuote = !item.message.text.isEmpty

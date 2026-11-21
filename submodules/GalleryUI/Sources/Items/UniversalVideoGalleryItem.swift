@@ -3688,7 +3688,7 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode {
                     }
                 }
             } else {
-                if let (message, maybeFile, _) = strongSelf.contentInfo(), let file = maybeFile, !message.isCopyProtected() && !item.peerIsCopyProtected && message.paidContent == nil {
+                if let (message, maybeFile, _) = strongSelf.contentInfo(), let file = maybeFile, qxGramCanSaveMedia(message, peerIsCopyProtected: item.peerIsCopyProtected, accountId: strongSelf.context.account.id) {
                     items.append(.action(ContextMenuActionItem(text: strongSelf.presentationData.strings.Gallery_MenuSaveToGallery, icon: { theme in generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Download"), color: theme.actionSheet.primaryTextColor) }, action: { c, _ in
                         guard let self else {
                             c?.dismiss(result: .default, completion: nil)
@@ -3814,9 +3814,18 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode {
                             
                             switch self.fetchStatus {
                             case .Local:
-                                let _ = (SaveToCameraRoll.saveToCameraRoll(context: self.context, userLocation: .peer(message.id.peerId), mediaReference: .message(message: MessageReference(message), media: file))
-                                |> deliverOnMainQueue).start(completed: { [weak self] in
+                                let _ = (qxGramSaveToCameraRollWithPermission(context: self.context, userLocation: .peer(message.id.peerId), mediaReference: .message(message: MessageReference(message), media: file), present: { [weak self] c, a in
+                                    self?.context.sharedContext.presentGlobalController(c, a)
+                                })
+                                |> deliverOnMainQueue).start(next: { [weak self] result in
                                     guard let self else {
+                                        return
+                                    }
+                                    guard case .saved = result else {
+                                        let alert = textAlertController(context: self.context, title: "QxGram", text: "Не разрешён доступ к Фото. Разрешите сохранение в настройках iOS.", actions: [
+                                            TextAlertAction(type: .defaultAction, title: "OK", action: {})
+                                        ])
+                                        self.context.sharedContext.presentGlobalController(alert, nil)
                                         return
                                     }
                                     guard let controller = self.galleryController() else {
@@ -3843,6 +3852,17 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode {
                         f(.default)
                         self?.galleryController()?.dismiss()
                         copyForwardMessages([message])
+                    })))
+                }
+
+                if let (message, _, _) = strongSelf.contentInfo(), QxGramAlwaysSavePolicy.isEnabled(accountId: strongSelf.context.account.id), let media = message.effectiveMedia.first {
+                    let useStandalone = message.id.peerId.namespace == Namespaces.Peer.SecretChat || message.id.namespace == Namespaces.Message.Local || message.id.namespace == Namespaces.Message.EphemeralLocal
+                    let reference: AnyMediaReference = useStandalone ? .standalone(media: media) : .message(message: MessageReference(message), media: media)
+                    items.append(.action(ContextMenuActionItem(text: "Сохранить в Файлы", icon: { theme in generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Save"), color: theme.actionSheet.primaryTextColor) }, action: { _, f in
+                        f(.default)
+                        let _ = qxGramSaveToFiles(context: strongSelf.context, mediaReference: reference, present: { c, a in
+                            strongSelf.context.sharedContext.presentGlobalController(c, a)
+                        })
                     })))
                 }
 
@@ -3873,7 +3893,7 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode {
                     })))
                 }
                 
-                if let (message, _, _) = strongSelf.contentInfo(), let image = message.effectiveMedia.first(where: { $0 is TelegramMediaImage }) as? TelegramMediaImage, !message.isCopyProtected() && !item.peerIsCopyProtected && message.paidContent == nil {
+                if let (message, _, _) = strongSelf.contentInfo(), let image = message.effectiveMedia.first(where: { $0 is TelegramMediaImage }) as? TelegramMediaImage, qxGramCanSaveMedia(message, peerIsCopyProtected: item.peerIsCopyProtected, accountId: strongSelf.context.account.id) {
                     let context = strongSelf.context
                     var videoReference: AnyMediaReference?
                     if let video = image.video {
@@ -3882,9 +3902,18 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode {
                     items.append(.action(ContextMenuActionItem(text: strongSelf.presentationData.strings.Gallery_SaveImage, icon: { theme in generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Download"), color: theme.actionSheet.primaryTextColor) }, action: { [weak self] _, f in
                         f(.default)
                         
-                        let _ = (SaveToCameraRoll.saveToCameraRoll(context: context, userLocation: .peer(message.id.peerId), mediaReference: .message(message: MessageReference(message), media: image), video: videoReference)
-                        |> deliverOnMainQueue).start(completed: { [weak self] in
+                        let _ = (qxGramSaveToCameraRollWithPermission(context: context, userLocation: .peer(message.id.peerId), mediaReference: .message(message: MessageReference(message), media: image), video: videoReference, present: { c, a in
+                            context.sharedContext.presentGlobalController(c, a)
+                        })
+                        |> deliverOnMainQueue).start(next: { [weak self] result in
                             guard let strongSelf = self else {
+                                return
+                            }
+                            guard case .saved = result else {
+                                let alert = textAlertController(context: context, title: "QxGram", text: "Не разрешён доступ к Фото. Разрешите сохранение в настройках iOS.", actions: [
+                                    TextAlertAction(type: .defaultAction, title: "OK", action: {})
+                                ])
+                                context.sharedContext.presentGlobalController(alert, nil)
                                 return
                             }
                             guard let controller = strongSelf.galleryController() else {

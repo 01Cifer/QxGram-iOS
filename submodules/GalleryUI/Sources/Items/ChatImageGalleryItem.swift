@@ -743,7 +743,7 @@ final class ChatImageGalleryItemNode: ZoomableContentGalleryItemNode {
                     f(.default)
                 })))
                 
-                if !message.isCopyProtected() && !self.peerIsCopyProtected && message.paidContent == nil, let media = self.contextAndMedia?.1 {
+                if qxGramCanSaveMedia(message, peerIsCopyProtected: self.peerIsCopyProtected, accountId: context.account.id), let media = self.contextAndMedia?.1 {
                     items.append(.action(ContextMenuActionItem(text: self.presentationData.strings.Gallery_CreateSticker, icon: { theme in generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Sticker"), color: theme.actionSheet.primaryTextColor) }, action: { [weak self] _, f in
                         f(.default)
                         guard let self else {
@@ -772,20 +772,35 @@ final class ChatImageGalleryItemNode: ZoomableContentGalleryItemNode {
                         })
                     })))
                     
-                    items.append(.action(ContextMenuActionItem(text: self.presentationData.strings.Gallery_SaveImage, icon: { theme in generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Download"), color: theme.actionSheet.primaryTextColor) }, action: { [weak self] _, f in
+                    let alwaysSaveEnabled = QxGramAlwaysSavePolicy.isEnabled(accountId: context.account.id)
+                    items.append(.action(ContextMenuActionItem(text: alwaysSaveEnabled ? "Сохранить в галерею" : self.presentationData.strings.Gallery_SaveImage, icon: { theme in generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Download"), color: theme.actionSheet.primaryTextColor) }, action: { [weak self] _, f in
                         f(.default)
-                                                
-                        let _ = (SaveToCameraRoll.saveToCameraRoll(context: context, userLocation: .peer(message.id.peerId), mediaReference: media)
-                        |> deliverOnMainQueue).start(completed: { [weak self] in
-                            guard let strongSelf = self else {
+                        let _ = (qxGramSaveToCameraRollWithPermission(context: context, userLocation: .peer(message.id.peerId), mediaReference: media, present: { c, a in
+                            context.sharedContext.presentGlobalController(c, a)
+                        })
+                        |> deliverOnMainQueue).start(next: { [weak self] result in
+                            guard case .saved = result else {
+                                let alert = textAlertController(context: context, title: "QxGram", text: "Не разрешён доступ к Фото. Разрешите сохранение в настройках iOS.", actions: [
+                                    TextAlertAction(type: .defaultAction, title: "OK", action: {})
+                                ])
+                                context.sharedContext.presentGlobalController(alert, nil)
                                 return
                             }
-                            guard let controller = strongSelf.galleryController() else {
+                            guard let self, let controller = self.galleryController() else {
                                 return
                             }
-                            controller.present(UndoOverlayController(presentationData: strongSelf.presentationData, content: .mediaSaved(text: strongSelf.presentationData.strings.Gallery_ImageSaved), elevatedLayout: false, animateInAsReplacement: false, action: { _ in return false }), in: .window(.root))
+                            controller.present(UndoOverlayController(presentationData: self.presentationData, content: .mediaSaved(text: self.presentationData.strings.Gallery_ImageSaved), elevatedLayout: false, animateInAsReplacement: false, action: { _ in return false }), in: .window(.root))
                         })
                     })))
+
+                    if alwaysSaveEnabled {
+                        items.append(.action(ContextMenuActionItem(text: "Сохранить в Файлы", icon: { theme in generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Save"), color: theme.actionSheet.primaryTextColor) }, action: { _, f in
+                            f(.default)
+                            let _ = qxGramSaveToFiles(context: context, mediaReference: media, present: { c, a in
+                                context.sharedContext.presentGlobalController(c, a)
+                            })
+                        })))
+                    }
                 }
 
                 if QxGramSettings(accountId: context.account.id).value(.alwaysForward), qxGramCanCopyForwardAsNew(message), message.paidContent == nil, !message.media.contains(where: { $0 is TelegramMediaExpiredContent }) {
