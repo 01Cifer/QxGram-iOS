@@ -11,6 +11,7 @@ public enum QxGramSetting: String {
     case saveTtlMedia
     case showTtl
     case allowScreenshots
+    case callRecording
 }
 
 public final class QxGramSettings {

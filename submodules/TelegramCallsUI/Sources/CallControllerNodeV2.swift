@@ -6,6 +6,7 @@ import TelegramCore
 import TelegramAudio
 import AccountContext
 import TelegramPresentationData
+import TelegramUIPreferences
 import SwiftSignalKit
 import CallScreen
 import ComponentDisplayAdapters
@@ -61,6 +62,9 @@ final class CallControllerNodeV2: ViewControllerTracingNode, CallControllerNodeP
     var dismissAllTooltips: (() -> Void)?
     var restoreUIForPictureInPicture: ((@escaping (Bool) -> Void) -> Void)?
     var conferenceAddParticipant: (() -> Void)?
+    var toggleCallRecording: (() -> Void)?
+
+    private var callRecordingSettingsObserver: NSObjectProtocol?
     
     private var emojiKey: (data: Data, resolvedKey: [String])?
     private var validLayout: (layout: ContainerViewLayout, navigationBarHeight: CGFloat)?
@@ -197,6 +201,12 @@ final class CallControllerNodeV2: ViewControllerTracingNode, CallControllerNodeP
             }
             self.conferenceAddParticipant?()
         }
+        self.callScreen.callRecordingAction = { [weak self] in
+            guard let self else {
+                return
+            }
+            self.toggleCallRecording?()
+        }
 
         var enableVideoSharpening = false
         if let data = call.context.currentAppConfiguration.with({ $0 }).data, let value = data["ios_call_video_sharpening"] as? Double {
@@ -218,8 +228,16 @@ final class CallControllerNodeV2: ViewControllerTracingNode, CallControllerNodeP
             isRemoteBatteryLow: false,
             isEnergySavingEnabled: !self.sharedContext.energyUsageSettings.fullTranslucency,
             isConferencePossible: false,
-            enableVideoSharpening: enableVideoSharpening
+            enableVideoSharpening: enableVideoSharpening,
+            isCallRecordingAvailable: QxGramSettings(accountId: call.context.account.id).value(.callRecording)
         )
+
+        self.callRecordingSettingsObserver = NotificationCenter.default.addObserver(forName: .qxGramSettingsDidChange, object: nil, queue: .main, using: { [weak self] notification in
+            guard let self, let accountId = notification.userInfo?["accountId"] as? Int64, accountId == self.call.context.account.id.int64 else {
+                return
+            }
+            self.updateCallRecording(isAvailable: QxGramSettings(accountId: self.call.context.account.id).value(.callRecording))
+        })
         
         self.isMicrophoneMutedDisposable = (call.isMuted
         |> deliverOnMainQueue).startStrict(next: { [weak self] isMuted in
@@ -296,6 +314,9 @@ final class CallControllerNodeV2: ViewControllerTracingNode, CallControllerNodeP
         if let deviceOrientationObserver = self.deviceOrientationObserver {
             NotificationCenter.default.removeObserver(deviceOrientationObserver)
         }
+        if let callRecordingSettingsObserver = self.callRecordingSettingsObserver {
+            NotificationCenter.default.removeObserver(callRecordingSettingsObserver)
+        }
         UIDevice.current.endGeneratingDeviceOrientationNotifications()
         self.peerAvatarDisposable?.dispose()
         self.isMicrophoneMutedDisposable?.dispose()
@@ -354,6 +375,27 @@ final class CallControllerNodeV2: ViewControllerTracingNode, CallControllerNodeP
                 self.setupAudioOutputForVideoIfNeeded()
             }
         }
+    }
+
+    func updateCallRecording(isAvailable: Bool) {
+        guard var callScreenState = self.callScreenState else {
+            return
+        }
+        let manager = QxGramCallRecordingManager.shared
+        let available = isAvailable && manager.isAvailable
+        let recording = manager.isRecording
+        let startedAt = manager.startedAt
+        if callScreenState.isCallRecordingAvailable == available && callScreenState.isCallRecording == recording && callScreenState.callRecordingStartedAt == startedAt {
+            return
+        }
+        if !available && recording {
+            manager.stop()
+        }
+        callScreenState.isCallRecordingAvailable = available
+        callScreenState.isCallRecording = recording
+        callScreenState.callRecordingStartedAt = startedAt
+        self.callScreenState = callScreenState
+        self.update(transition: .animated(duration: 0.2, curve: .easeInOut))
     }
     
     private func toggleVideo() {
@@ -593,6 +635,11 @@ final class CallControllerNodeV2: ViewControllerTracingNode, CallControllerNodeP
             }
 
             callScreenState.isConferencePossible = callState.supportsConferenceCalls
+
+            let callRecordingManager = QxGramCallRecordingManager.shared
+            callScreenState.isCallRecordingAvailable = callScreenState.isCallRecordingAvailable && callRecordingManager.isAvailable
+            callScreenState.isCallRecording = callRecordingManager.isRecording
+            callScreenState.callRecordingStartedAt = callRecordingManager.startedAt
             
             if self.callScreenState != callScreenState {
                 self.callScreenState = callScreenState
@@ -603,6 +650,7 @@ final class CallControllerNodeV2: ViewControllerTracingNode, CallControllerNodeP
         }
         
         if case let .terminated(_, _, reportRating) = callState.state {
+            QxGramCallRecordingManager.shared.stop()
             self.callEnded?(reportRating)
         }
         
