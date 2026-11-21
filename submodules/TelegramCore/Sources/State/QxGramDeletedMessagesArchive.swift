@@ -13,7 +13,7 @@ public struct QxGramArchivedMessage: Codable {
     public let timestamp: Int32
     public let flags: Int64
     public let authorData: Data?
-    public let text: String
+    public var text: String
     public let mediaData: [Data]
     public let reason: String
 

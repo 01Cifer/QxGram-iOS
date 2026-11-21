@@ -94,7 +94,11 @@ class QxGramTtlMediaTests(unittest.TestCase):
         self.assertIn("qxGramCopyTtlMedia(message.media, mediaBox: mediaBox)", copy_text)
         self.assertIn("mediaBox.copyResourceData(from: resource.id, to: copied.id, synchronous: true)", copy_text)
         self.assertIn("LocalFileMediaResource(fileId: fileId, size: resource.size)", copy_text)
-        self.assertIn('QxGramTtlPolicy.isShowTtlEnabled(accountId: accountId) ? "🔥 TTL\\n" : ""', copy_text)
+        self.assertIn("text: message.text,", copy_text)
+        self.assertIn("if attribute is AutoclearTimeoutMessageAttribute || attribute is AutoremoveTimeoutMessageAttribute", copy_text)
+        self.assertIn("public func qxGramTtlSavedEntryId(accountId: AccountRecordId, messageId: MessageId)", copy_text)
+        self.assertNotIn("let label =", copy_text)
+        self.assertNotIn('text: "\\(label)\\(message.text)"', copy_text)
         self.assertIn("let _ = transaction.addMessages([storeMessage], location: .Random)", copy_text)
 
         autoremove = source("submodules/TelegramCore/Sources/State/ManagedAutoremoveMessageOperations.swift")
@@ -231,6 +235,49 @@ class QxGramGhostTests(unittest.TestCase):
         text = source("submodules/SettingsUI/Sources/QxGramSettingsController.swift")
         self.assertIn("Все функции QxGram активны", text)
         self.assertNotIn("Ghost ещё не реализован", text)
+
+
+class QxGramTtlLoopSafetyTests(unittest.TestCase):
+    def test_copy_is_idempotent_and_does_not_reschedule_itself(self):
+        copy_text = source("submodules/TelegramCore/Sources/State/QxGramTtlMediaCopy.swift")
+        self.assertIn("let key = ValueBoxKey(length: 24)", copy_text)
+        self.assertIn("key.setInt64(0, value: accountId.int64)", copy_text)
+        self.assertIn("key.setInt32(16, value: messageId.namespace)", copy_text)
+        self.assertIn("transaction.retrieveItemCacheEntry(id: markerId) == nil", copy_text)
+        self.assertIn("transaction.putItemCacheEntry(id: markerId, entry: marker)", copy_text)
+        self.assertIn("if qxGramTtlGuard.inFlight.contains(guardKey)", copy_text)
+        self.assertIn("qxGramTtlGuard.inFlight.insert(guardKey)", copy_text)
+        self.assertIn("qxGramTtlGuard.inFlight.remove(guardKey)", copy_text)
+
+    def test_fuse_trips_and_disables_ttl(self):
+        policy = source("submodules/TelegramCore/Sources/State/QxGramTtlPolicy.swift")
+        self.assertIn('private static let fuseKeySuffix = "ttlFuseTripped"', policy)
+        self.assertIn("public static func isTtlDisabled(accountId: AccountRecordId) -> Bool", policy)
+        self.assertIn("public static func disableTtl(accountId: AccountRecordId)", policy)
+        self.assertIn('setting: "saveTtlMedia"', policy)
+        self.assertIn('setting: "showTtl"', policy)
+        self.assertIn("guard !Self.isTtlDisabled(accountId: accountId) else", policy)
+
+        copy_text = source("submodules/TelegramCore/Sources/State/QxGramTtlMediaCopy.swift")
+        self.assertIn("let fuseTripped = messageAttempts.count > 8 || accountAttempts.count > 60", copy_text)
+        self.assertIn("QxGramTtlPolicy.disableTtl(accountId: accountId)", copy_text)
+        self.assertIn('Logger.shared.log("QxGram TTL", "fuse tripped', copy_text)
+
+    def test_migration_cleans_spam_and_restores_previews(self):
+        migration = source("submodules/TelegramCore/Sources/State/QxGramTtlLoopMigration.swift")
+        self.assertIn("public func qxGramRunTtlLoopMigration(accountId: AccountRecordId, transaction: Transaction)", migration)
+        self.assertIn("transaction.chatListGetAllPeerIds()", migration)
+        self.assertIn("message.text.hasPrefix(qxGramTtlTextLabelPrefix)", migration)
+        self.assertIn("transaction.deleteMessages(spamIds, forEachMedia: nil)", migration)
+        self.assertIn("transaction.removeItemCacheEntry(id: qxGramTtlSavedEntryId(accountId: accountId, messageId: id))", migration)
+        self.assertIn("qxGramStrippedTtlText(item.text)", migration)
+        self.assertIn("UserDefaults.standard.set(true, forKey: migrationKey)", migration)
+
+        account = source("submodules/TelegramCore/Sources/Account/Account.swift")
+        self.assertIn("qxGramRunTtlLoopMigration(accountId: migrationAccountId, transaction: transaction)", account)
+        migration_index = account.index("qxGramRunTtlLoopMigration(accountId: migrationAccountId")
+        autoremove_index = account.index("managedAutoremoveMessageOperations(network: self.network, postbox: self.postbox, accountId: self.id, isRemove: true)")
+        self.assertLess(migration_index, autoremove_index)
 
 
 if __name__ == "__main__":

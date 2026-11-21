@@ -1,6 +1,8 @@
 import Foundation
 import Postbox
 
+let qxGramTtlTextLabelPrefix = "🔥 TTL\n"
+
 private func qxGramCopiedResource(_ resource: TelegramMediaResource, mediaBox: MediaBox) -> TelegramMediaResource? {
     guard mediaBox.completedResourcePath(id: resource.id) != nil else {
         return nil
@@ -30,19 +32,66 @@ private struct QxGramTtlSavedMarker: Codable {
     let saved: Bool
 }
 
-public func qxGramTtlSavedEntryId(messageId: MessageId) -> ItemCacheEntryId {
-    let key = ValueBoxKey(length: 16)
-    key.setInt64(0, value: messageId.peerId.toInt64())
-    key.setInt32(8, value: messageId.namespace)
-    key.setInt32(12, value: messageId.id)
+public func qxGramTtlSavedEntryId(accountId: AccountRecordId, messageId: MessageId) -> ItemCacheEntryId {
+    let key = ValueBoxKey(length: 24)
+    key.setInt64(0, value: accountId.int64)
+    key.setInt64(8, value: messageId.peerId.toInt64())
+    key.setInt32(16, value: messageId.namespace)
+    key.setInt32(20, value: messageId.id)
     return ItemCacheEntryId(collectionId: Namespaces.CachedItemCollection.qxgramDeletedMessages, key: key)
+}
+
+private final class QxGramTtlGuardState {
+    let lock = NSLock()
+    var inFlight = Set<String>()
+    var attemptsByMessage: [String: [CFAbsoluteTime]] = [:]
+    var attemptsByAccount: [Int64: [CFAbsoluteTime]] = [:]
+}
+
+private let qxGramTtlGuard = QxGramTtlGuardState()
+
+private func qxGramTtlGuardKey(accountId: AccountRecordId, messageId: MessageId) -> String {
+    return "\(accountId.int64):\(messageId.peerId.toInt64()):\(messageId.namespace):\(messageId.id)"
 }
 
 public func qxGramSaveTtlLocalCopy(transaction: Transaction, mediaBox: MediaBox, accountId: AccountRecordId, message: Message) {
     guard QxGramTtlPolicy.isSaveMediaEnabled(accountId: accountId) else {
         return
     }
-    let markerId = qxGramTtlSavedEntryId(messageId: message.id)
+
+    let guardKey = qxGramTtlGuardKey(accountId: accountId, messageId: message.id)
+    qxGramTtlGuard.lock.lock()
+    if qxGramTtlGuard.inFlight.contains(guardKey) {
+        qxGramTtlGuard.lock.unlock()
+        Logger.shared.log("QxGram TTL", "recursion guarded: \(guardKey)")
+        return
+    }
+    qxGramTtlGuard.inFlight.insert(guardKey)
+
+    let now = CFAbsoluteTimeGetCurrent()
+    let window: CFAbsoluteTime = 10.0
+    var messageAttempts = (qxGramTtlGuard.attemptsByMessage[guardKey] ?? []).filter { now - $0 < window }
+    messageAttempts.append(now)
+    qxGramTtlGuard.attemptsByMessage[guardKey] = messageAttempts
+    var accountAttempts = (qxGramTtlGuard.attemptsByAccount[accountId.int64] ?? []).filter { now - $0 < window }
+    accountAttempts.append(now)
+    qxGramTtlGuard.attemptsByAccount[accountId.int64] = accountAttempts
+    let fuseTripped = messageAttempts.count > 8 || accountAttempts.count > 60
+    qxGramTtlGuard.lock.unlock()
+
+    defer {
+        qxGramTtlGuard.lock.lock()
+        qxGramTtlGuard.inFlight.remove(guardKey)
+        qxGramTtlGuard.lock.unlock()
+    }
+
+    if fuseTripped {
+        QxGramTtlPolicy.disableTtl(accountId: accountId)
+        Logger.shared.log("QxGram TTL", "fuse tripped, TTL disabled for account \(accountId.int64), key \(guardKey)")
+        return
+    }
+
+    let markerId = qxGramTtlSavedEntryId(accountId: accountId, messageId: message.id)
     guard transaction.retrieveItemCacheEntry(id: markerId) == nil else {
         return
     }
@@ -52,7 +101,14 @@ public func qxGramSaveTtlLocalCopy(transaction: Transaction, mediaBox: MediaBox,
         return
     }
 
-    let label = QxGramTtlPolicy.isShowTtlEnabled(accountId: accountId) ? "🔥 TTL\n" : ""
+    var attributes: [MessageAttribute] = []
+    for attribute in message.attributes {
+        if attribute is AutoclearTimeoutMessageAttribute || attribute is AutoremoveTimeoutMessageAttribute {
+            continue
+        }
+        attributes.append(attribute)
+    }
+
     let storeMessage = StoreMessage(
         peerId: message.id.peerId,
         namespace: Namespaces.Message.Local,
@@ -67,8 +123,8 @@ public func qxGramSaveTtlLocalCopy(transaction: Transaction, mediaBox: MediaBox,
         localTags: message.localTags,
         forwardInfo: nil,
         authorId: message.author?.id,
-        text: "\(label)\(message.text)",
-        attributes: message.attributes,
+        text: message.text,
+        attributes: attributes,
         media: copiedMedia
     )
     let _ = transaction.addMessages([storeMessage], location: .Random)
@@ -76,6 +132,7 @@ public func qxGramSaveTtlLocalCopy(transaction: Transaction, mediaBox: MediaBox,
     if let marker = CodableEntry(QxGramTtlSavedMarker(saved: true)) {
         transaction.putItemCacheEntry(id: markerId, entry: marker)
     }
+    Logger.shared.log("QxGram TTL", "saved local copy for \(guardKey)")
 }
 
 public func qxGramCopyTtlMedia(_ media: [Media], mediaBox: MediaBox) -> [Media] {
