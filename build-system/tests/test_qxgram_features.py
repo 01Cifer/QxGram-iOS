@@ -311,5 +311,65 @@ class QxGramTtlLoopSafetyTests(unittest.TestCase):
         self.assertLess(migration_index, autoremove_index)
 
 
+class QxGramCallRecordingTests(unittest.TestCase):
+    def test_settings_toggle_is_default_off_and_labelled(self):
+        preferences = source("submodules/TelegramUIPreferences/Sources/QxGramSettings.swift")
+        self.assertIn("case callRecording", preferences)
+
+        settings = source("submodules/SettingsUI/Sources/QxGramSettingsController.swift")
+        self.assertIn("case callRecording(Bool)", settings)
+        self.assertIn("title = \"Запись звонков\"", settings)
+        self.assertIn("setting = .callRecording", settings)
+        self.assertIn(".callRecording(settings.value(.callRecording))", settings)
+
+    def test_manager_captures_screen_and_microphone_and_saves_twice(self):
+        manager = source("submodules/TelegramCallsUI/Sources/QxGramCallRecordingManager.swift")
+        self.assertIn("import ReplayKit", manager)
+        self.assertIn("import Photos", manager)
+        self.assertIn("recorder.startRecording(withMicrophoneEnabled: true)", manager)
+        self.assertIn("stopRecording(withOutput: outputURL)", manager)
+        self.assertIn("QxGramCallRecordings", manager)
+        self.assertIn("PHAssetCreationRequest.creationRequestForAssetFromVideo(atFileURL: url)", manager)
+        self.assertIn("UIApplication.didEnterBackgroundNotification", manager)
+        self.assertIn("public var onStateChanged: (() -> Void)?", manager)
+
+    def test_button_has_red_dot_and_timer(self):
+        button = source("submodules/TelegramUI/Components/Calls/CallScreen/Sources/Components/QxGramCallRecordingButtonView.swift")
+        self.assertIn("class QxGramCallRecordingButtonView: HighlightTrackingButton", button)
+        self.assertIn("self.titleLabel.text = \"Запись\"", button)
+        self.assertIn("String(format: \"%02d:%02d\"", button)
+        self.assertIn("dotView.backgroundColor = UIColor(red: 1.0, green: 0.27, blue: 0.27, alpha: 1.0)", button)
+        self.assertIn("Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true", button)
+
+    def test_button_is_wired_next_to_add_participant(self):
+        screen = source("submodules/TelegramUI/Components/Calls/CallScreen/Sources/PrivateCallScreen.swift")
+        self.assertIn("public var callRecordingAction: (() -> Void)?", screen)
+        self.assertIn("private var callRecordingButtonView: QxGramCallRecordingButtonView?", screen)
+        self.assertIn("let isCallRecordingVisible = params.state.isCallRecordingAvailable", screen)
+        self.assertIn("let conferenceRightOffset = conferenceButtonSize.width + (isCallRecordingVisible ? callRecordingButtonSize.width + 6.0 : 0.0)", screen)
+        self.assertIn("callRecordingButtonView.update(size: callRecordingButtonSize, isRecording: params.state.isCallRecording, startedAt: params.state.callRecordingStartedAt)", screen)
+        self.assertIn("public var isCallRecordingAvailable: Bool", screen)
+
+        node = source("submodules/TelegramCallsUI/Sources/CallControllerNodeV2.swift")
+        self.assertIn("var toggleCallRecording: (() -> Void)?", node)
+        self.assertIn("self.callScreen.callRecordingAction = { [weak self] in", node)
+        self.assertIn("func updateCallRecording(isAvailable: Bool)", node)
+        self.assertIn("QxGramCallRecordingManager.shared.stop()", node)
+
+    def test_controller_asks_once_and_stops_on_dismiss(self):
+        controller = source("submodules/TelegramCallsUI/Sources/CallController.swift")
+        self.assertIn("func updateCallRecording(isAvailable: Bool)", controller)
+        self.assertIn("displayNode.toggleCallRecording = { [weak self] in", controller)
+        self.assertIn("title: \"Запись звонков\"", controller)
+        self.assertIn("title: \"Отмена\"", controller)
+        self.assertIn("title: \"Понимаю\"", controller)
+        self.assertIn("qxgram.callRecording.consent.", controller)
+        self.assertIn("QxGramCallRecordingManager.shared.onStateChanged", controller)
+        self.assertIn("QxGramCallRecordingManager.shared.stop()", controller)
+        consent_index = controller.index('title: "Отмена"')
+        start_index = controller.index("private func startCallRecording()")
+        self.assertLess(consent_index, start_index)
+
+
 if __name__ == "__main__":
     unittest.main()
